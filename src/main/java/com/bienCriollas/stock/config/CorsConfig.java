@@ -1,4 +1,4 @@
-package com.bienCriollas.stock.Config;
+package com.bienCriollas.stock.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,12 +9,19 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsConfig {
 
-    @Bean
+	@Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.addAllowedOriginPattern("*");
+
+        // 🔹 Orígenes permitidos
+        config.addAllowedOriginPattern("http://localhost:5173");
+        config.addAllowedOriginPattern("https://biencriollas-front-production.up.railway.app");
+
+        // 🔹 Métodos y headers
         config.addAllowedMethod("*");
         config.addAllowedHeader("*");
+
+        // 🔹 Cookies / Authorization headers
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
