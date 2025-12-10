@@ -30,10 +30,17 @@ public class StockController {
 	
 	// Endpoint para actualizar stock en lote
 	@PostMapping("/actualizar")
-	public ResponseEntity<Boolean> actualizarStockLote(@RequestBody List<StockDTO> request) {
-	    Boolean response = stockService.actualizarStock(request);
-	    return ResponseEntity.ok(response);
-	}
+    public ResponseEntity<?> actualizarStock(@RequestBody List<StockDTO> requestList) {
+        try {
+            Boolean ok = stockService.actualizarStock(requestList);
+            return ResponseEntity.ok(ok);
+        } catch (Exception e) {
+            e.printStackTrace(); // para verlo en logs de Railway
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("ERROR en actualizarStock: " + e.getMessage());
+        }
+    }
 	
 	
 	// Endpoint para obtener todos los registros de stock
