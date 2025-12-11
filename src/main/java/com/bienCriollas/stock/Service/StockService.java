@@ -30,9 +30,9 @@ public class StockService {
 	// Metodo para actualizar stock en lote
 	
 	@Transactional
- 	public Boolean actualizarStock(List<StockDTO>  requestList) {
-		
-		for (StockDTO request : requestList) {
+	public Boolean actualizarStock(List<StockDTO> requestList) {
+
+	    for (StockDTO request : requestList) {
 
 	        // 1) Validar variedad
 	        VariedadEmpanada variedad = variedadEmpanadaRepository.findById(request.id_variedad())
@@ -43,24 +43,47 @@ public class StockService {
 	            throw new RuntimeException("La variedad con id " + request.id_variedad() + " no está activa");
 	        }
 
-	        // 2) último stock activo para esa variedad
+	        // 2) último stock ACTIVO para esa variedad
 	        Stock ultimoStock = stockRepository
 	                .findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(request.id_variedad(), 1);
 
 	        Integer stockDisponibleAnterior = 0;
 
 	        if (ultimoStock != null) {
+
+	            // 🟢 CASO NUEVO: ya hay stock para ESA VARIEDAD y ESA FECHA
+	            if (ultimoStock.getFechaElaboracion()
+	                    .equals(request.fecha_elaboracion())) {
+
+	                // sumamos la producción al mismo registro
+	                Integer totalAnterior = ultimoStock.getStockTotal() != null
+	                        ? ultimoStock.getStockTotal()
+	                        : 0;
+
+	                Integer disponibleAnterior = ultimoStock.getStockDisponible() != null
+	                        ? ultimoStock.getStockDisponible()
+	                        : 0;
+
+	                ultimoStock.setStockTotal(totalAnterior + request.stock_total());
+	                ultimoStock.setStockDisponible(disponibleAnterior + request.stock_total());
+
+	                stockRepository.save(ultimoStock);
+	                // importantísimo: pasamos al siguiente del for, NO insertamos uno nuevo
+	                continue;
+	            }
+
+	            // 🟡 CASO DE SIEMPRE: último stock es de un día anterior
 	            stockDisponibleAnterior = ultimoStock.getStockDisponible();
 
-	            // opcional: desactivar el anterior
+	            // desactivar el anterior
 	            ultimoStock.setActivo(0);
 	            stockRepository.save(ultimoStock);
 	        }
 
-	        // 3) nuevo disponible = sobrante + producción nueva
+	        // 3) nuevo disponible = sobrante + producción nueva (para un día nuevo)
 	        Integer stockDisponibleNuevo = stockDisponibleAnterior + request.stock_total();
 
-	        // 4) crear registro nuevo
+	        // 4) crear registro nuevo (para esa variedad y esa fecha)
 	        Stock nuevoStock = Stock.builder()
 	                .idVariedad(request.id_variedad())
 	                .fechaElaboracion(request.fecha_elaboracion())
@@ -74,7 +97,8 @@ public class StockService {
 
 	    // si todo llegó hasta acá sin excepciones, consideramos que fue OK
 	    return true;
-    }
+	}
+
 	
 	// Metodo para descontar stock de una variedad
 	@Transactional
