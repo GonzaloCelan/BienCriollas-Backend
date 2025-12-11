@@ -9,19 +9,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsConfig {
 
-	@Bean
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // 🔹 Orígenes permitidos
-        config.addAllowedOriginPattern("http://localhost:5173");
+        // 🔹 ORÍGENES PERMITIDOS
+        config.addAllowedOriginPattern("http://localhost:*");
+        config.addAllowedOriginPattern("http://127.0.0.1:*");
         config.addAllowedOriginPattern("https://biencriollas-front-production.up.railway.app");
 
-        // 🔹 Métodos y headers
+        // 🔹 MÉTODOS
         config.addAllowedMethod("*");
+
+        // 🔹 HEADERS
         config.addAllowedHeader("*");
 
-        // 🔹 Cookies / Authorization headers
+        // 🔹 PERMITIR COOKIES (opcional)
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
