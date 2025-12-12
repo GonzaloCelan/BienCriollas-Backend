@@ -45,6 +45,13 @@ public class CajaDiaria {
     @Column(name = "balance_final", nullable = false)
     private BigDecimal balanceFinal;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado",  nullable = false )
+    private EstadoCaja estadoCaja;
+    
     @Column(name = "creado_en", insertable = false, updatable = false)
     private LocalDateTime creadoEn;
+    
+    @Column(name = "cerrada_en", insertable = false, updatable = false)
+    private LocalDateTime cerradoEn;
 }

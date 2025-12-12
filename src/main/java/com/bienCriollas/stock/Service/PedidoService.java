@@ -3,9 +3,11 @@ package com.bienCriollas.stock.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,13 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
+import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.DetallePedido;
+import com.bienCriollas.stock.Model.EstadoCaja;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.Stock;
 import com.bienCriollas.stock.Model.TipoEstado;
 import com.bienCriollas.stock.Model.TipoPago;
 import com.bienCriollas.stock.Model.TipoVenta;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
+import com.bienCriollas.stock.Repository.CajaDiariaRepository;
 import com.bienCriollas.stock.Repository.PedidoDetalleRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
 import com.bienCriollas.stock.Repository.StockRepository;
@@ -39,7 +44,7 @@ public class PedidoService {
 	private final StockService stockService;
 	private final VariedadEmpanadaService variedadEmpanadaService;
 	private final PedidoDetalleRepository detallePedidoRepository;
-	
+	private final CajaDiariaRepository cajaDiariaRepository;
 	private final StockRepository stockRepository;
 
 	
@@ -48,6 +53,12 @@ public class PedidoService {
 	
 	@Transactional
 	public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO) {
+
+	    // ✅ Fecha de hoy en Argentina (evita desfasajes en Railway)
+	    LocalDate fechaCaja = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+
+	    // ✅ NUEVO: asegurar caja diaria ABIERTA para ese día
+	    asegurarCajaAbiertaDelDia(fechaCaja);
 
 	    // 1) Parsear enums una sola vez
 	    TipoVenta tipoVenta = pedidoDTO.tipoVenta() != null
@@ -67,7 +78,7 @@ public class PedidoService {
 	            .numeroPedidoPedidosYa(pedidoDTO.numeroPedidoPedidosYa())
 	            .horarioEntrega(pedidoDTO.horaEntrega() != null ? pedidoDTO.horaEntrega() : null)
 	            .estado(TipoEstado.PENDIENTE)
-	            .fechaCreacion(LocalDate.now())
+	            .fechaCreacion(fechaCaja) // ✅ usar la misma fecha AR
 	            .build();
 
 	    // 3) Mapear detalles y descontar stock
@@ -112,19 +123,16 @@ public class PedidoService {
 	    if (tipoPago != null) {
 	        switch (tipoPago) {
 	            case EFECTIVO:
-	                // Todo el total va a efectivo
 	                montoEfectivo = totalPedido;
 	                montoTransferencia = BigDecimal.ZERO;
 	                break;
 
 	            case TRANSFERENCIA:
-	                // Todo el total va a transferencia
 	                montoEfectivo = BigDecimal.ZERO;
 	                montoTransferencia = totalPedido;
 	                break;
 
 	            case COMBINADO:
-	                // Usamos lo que viene del DTO
 	                BigDecimal dtoEfectivo = pedidoDTO.montoEfectivo() != null
 	                        ? pedidoDTO.montoEfectivo()
 	                        : BigDecimal.ZERO;
@@ -133,9 +141,7 @@ public class PedidoService {
 	                        ? pedidoDTO.montoTransferencia()
 	                        : BigDecimal.ZERO;
 
-	                // Validaciones básicas (opcional pero recomendado)
-	                if (dtoEfectivo.compareTo(BigDecimal.ZERO) < 0 ||
-	                        dtoTransfer.compareTo(BigDecimal.ZERO) < 0) {
+	                if (dtoEfectivo.compareTo(BigDecimal.ZERO) < 0 || dtoTransfer.compareTo(BigDecimal.ZERO) < 0) {
 	                    throw new IllegalArgumentException("Los montos de pago no pueden ser negativos");
 	                }
 
@@ -151,7 +157,6 @@ public class PedidoService {
 	                break;
 
 	            default:
-	                // otros tipos si en el futuro aparecen
 	                break;
 	        }
 	    }
@@ -176,6 +181,33 @@ public class PedidoService {
 	            nuevoPedido.getTotalPedido(),
 	            TipoEstado.PENDIENTE
 	    );
+	}
+
+	
+	private CajaDiaria asegurarCajaAbiertaDelDia(LocalDate fechaCaja) {
+
+	    return cajaDiariaRepository.findByFecha(fechaCaja).orElseGet(() -> {
+	        try {
+	            CajaDiaria nueva = CajaDiaria.builder()
+	                    .fecha(fechaCaja)
+	                    .estadoCaja(EstadoCaja.ABIERTA) // o "ABIERTA" si lo guardás como String
+	                    .ingresosEfectivo(BigDecimal.ZERO)
+	                    .ingresosTransferencia(BigDecimal.ZERO)
+	                    .ingresosPedidosYa(BigDecimal.ZERO)
+	                    .ingresosTotales(BigDecimal.ZERO)
+	                    .mermas(BigDecimal.ZERO)
+	                    .totalEgresos(BigDecimal.ZERO)
+	                    .balanceFinal(BigDecimal.ZERO)
+	                    .build();
+
+	            return cajaDiariaRepository.save(nueva);
+
+	        } catch (DataIntegrityViolationException ex) {
+	            // Otro pedido creó la caja justo antes (por el UNIQUE(fecha))
+	            return cajaDiariaRepository.findByFecha(fechaCaja)
+	                    .orElseThrow(() -> new RuntimeException("No se pudo asegurar la caja del día " + fechaCaja));
+	        }
+	    });
 	}
 
 	

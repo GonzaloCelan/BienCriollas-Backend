@@ -2,20 +2,25 @@ package com.bienCriollas.stock.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.bienCriollas.stock.Dto.BalanceResponseDTO;
 import com.bienCriollas.stock.Dto.CajaEstadoDTO;
+import com.bienCriollas.stock.Dto.CajaMetaResponseDTO;
 import com.bienCriollas.stock.Dto.CajaResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoRequestDTO;
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.CajaEgreso;
+import com.bienCriollas.stock.Model.EstadoCaja;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Model.MermaEmpanada;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
@@ -79,16 +84,55 @@ public class CajaService {
     //METODO PARA REGISTRAR EGRESO
     @Transactional
     public CajaEgreso registrarEgreso(EgresoRequestDTO request) {
-;
+
+        if (request == null) {
+            throw new IllegalArgumentException("Request inválido");
+        }
+
+        String descripcion = request.descripcion() != null ? request.descripcion().trim() : "";
+        if (descripcion.isBlank()) {
+            throw new IllegalArgumentException("La descripción es obligatoria");
+        }
+
+        BigDecimal monto = request.monto();
+        if (monto == null || monto.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El monto debe ser mayor a 0");
+        }
+
+        ZoneId AR = ZoneId.of("America/Argentina/Buenos_Aires");
+        LocalDate hoyAR = LocalDate.now(AR);
+
+        // ✅ si tu DTO no trae fecha, se asume HOY
+        LocalDate fecha = (request.fecha() != null) ? request.fecha() : hoyAR;
+
+        // ✅ no permitir futuro
+        if (fecha.isAfter(hoyAR)) {
+            throw new IllegalArgumentException("No se puede registrar un egreso en una fecha futura");
+        }
+
+        // ✅ si querés permitir egresos de fechas pasadas, sacá este if
+        if (!fecha.equals(hoyAR)) {
+            throw new IllegalArgumentException("Solo se permiten egresos del día de hoy");
+        }
+
+        // ✅ Resolver caja: por id si viene, sino por fecha (y si no existe, crear ABIERTA)
+        CajaDiaria caja = resolverCajaParaEgreso(request.idCaja(), fecha);
+
+        // ✅ Validar estado
+        if (caja.getEstadoCaja() == EstadoCaja.CERRADA) {
+            throw new IllegalStateException("La caja del día está cerrada. No se pueden registrar egresos.");
+        }
+
         CajaEgreso egreso = CajaEgreso.builder()
-        		.idCaja(request.idCaja())
-                .descripcion(request.descripcion())
-                .monto(request.monto())
-                .hora(LocalTime.now())
+                .idCaja(caja.getIdCaja()) // ✅ SIEMPRE un id válido (nunca null)
+                .descripcion(descripcion)
+                .monto(monto)
+                .hora(LocalTime.now(AR))  // ✅ hora Argentina
                 .build();
 
         return cajaEgresoRepository.save(egreso);
     }
+
     
     
     public BalanceResponseDTO calcularBalanceDiario(LocalDate fecha) {
@@ -128,48 +172,99 @@ public class CajaService {
     }	
     
     
+   
     @Transactional
     public CajaDiaria registrarCierreDeCaja(LocalDate fecha) {
-    	
-    	// 0️⃣ Validar si ya existe cierre de caja en esa fecha
-        Optional<CajaDiaria> existente = cajaDiariaRepository.findByFecha(fecha);
 
-        if (existente.isPresent()) {
-            throw new RuntimeException("Ya existe un cierre de caja registrado para esta fecha.");
+        ZoneId AR = ZoneId.of("America/Argentina/Buenos_Aires");
+        LocalDate hoyAR = LocalDate.now(AR);
+
+        if (fecha == null) {
+            throw new IllegalArgumentException("La fecha es obligatoria");
         }
 
-        // === 1️⃣ Obtener estadísticas del día (ingresos + mermas) ===
-    	CajaResponseDTO datos = this.registrarIngresos(fecha);
-    	BalanceResponseDTO total = this.calcularBalanceDiario(fecha);
+        // ✅ No permitir futuro
+        if (fecha.isAfter(hoyAR)) {
+            throw new IllegalArgumentException("No se puede cerrar una caja de fecha futura");
+        }
 
-        BigDecimal ingresosTotales = total.ingresos();
-        BigDecimal ingresosEfectivo = datos.ingresosEfectivo();
-        BigDecimal ingresosTransfer = datos.ingresosTransferencias();
-        BigDecimal ingresosPedidosYa = datos.pedidosYaLiquidacion() != null 
-                ? datos.pedidosYaLiquidacion() 
+        // ✅ Si querés cerrar SOLO hoy, dejalo. Si querés permitir días pasados, sacá este if.
+        if (!fecha.equals(hoyAR)) {
+            throw new IllegalArgumentException("Solo se puede cerrar la caja del día de hoy");
+        }
+
+        // 1) Obtener caja del día (o crearla ABIERTA si no existe)
+        CajaDiaria caja = cajaDiariaRepository.findByFecha(fecha).orElseGet(() -> {
+            try {
+                CajaDiaria nueva = CajaDiaria.builder()
+                        .fecha(fecha)
+                        .estadoCaja(EstadoCaja.ABIERTA)
+                        .ingresosEfectivo(BigDecimal.ZERO)
+                        .ingresosTransferencia(BigDecimal.ZERO)
+                        .ingresosPedidosYa(BigDecimal.ZERO)
+                        .ingresosTotales(BigDecimal.ZERO)
+                        .mermas(BigDecimal.ZERO)
+                        .totalEgresos(BigDecimal.ZERO)
+                        .balanceFinal(BigDecimal.ZERO)
+                        .cerradoEn(null)
+                        .build();
+
+                return cajaDiariaRepository.save(nueva);
+
+            } catch (DataIntegrityViolationException ex) {
+                return cajaDiariaRepository.findByFecha(fecha)
+                        .orElseThrow(() -> new RuntimeException("No se pudo crear/obtener la caja del día " + fecha));
+            }
+        });
+
+        // 2) Validar estado
+        if (caja.getEstadoCaja() == EstadoCaja.CERRADA) {
+            throw new RuntimeException("La caja ya está cerrada para esta fecha.");
+        }
+
+        // 3) Traer datos del día
+        CajaResponseDTO datos = this.registrarIngresos(fecha);
+        BalanceResponseDTO total = this.calcularBalanceDiario(fecha);
+
+        BigDecimal ingresosEfectivo = nvl(datos.ingresosEfectivo());
+        BigDecimal transferBase    = nvl(datos.ingresosTransferencias());
+
+        BigDecimal ingresosPedidosYa = datos.pedidosYaLiquidacion() != null
+                ? datos.pedidosYaLiquidacion()
                 : BigDecimal.ZERO;
-        BigDecimal totalMermas = datos.totalMermas();
 
+        // ✅ PedidosYa siempre cuenta como transferencia
+        BigDecimal ingresosTransferFinal = transferBase.add(ingresosPedidosYa);
 
-        BigDecimal totalEgresos = total.egresos();
-        BigDecimal balanceFinal = total.balance();
-        
+        BigDecimal totalMermas  = nvl(datos.totalMermas());
+        BigDecimal totalEgresos = nvl(total.egresos());
 
+        // ✅ Ingresos totales consistentes
+        BigDecimal ingresosTotales = ingresosEfectivo.add(ingresosTransferFinal);
 
-        // === 4️⃣ Crear y guardar registro de caja_diaria ===
-        CajaDiaria caja = CajaDiaria.builder()
-                .fecha(fecha)
-                .ingresosEfectivo(ingresosEfectivo)
-                .ingresosTransferencia(ingresosTransfer)
-                .ingresosPedidosYa(ingresosPedidosYa)
-                .ingresosTotales(ingresosTotales)
-                .mermas(totalMermas)
-                .totalEgresos(totalEgresos)
-                .balanceFinal(balanceFinal)
-                .build();
+        // ✅ Balance final (ingresos - egresos - mermas)
+        BigDecimal balanceFinal = ingresosTotales.subtract(totalEgresos).subtract(totalMermas);
+
+        // 4) Guardar snapshot + cerrar
+        caja.setIngresosEfectivo(ingresosEfectivo);
+        caja.setIngresosTransferencia(ingresosTransferFinal);
+        caja.setIngresosPedidosYa(ingresosPedidosYa);
+        caja.setIngresosTotales(ingresosTotales);
+
+        caja.setMermas(totalMermas);
+        caja.setTotalEgresos(totalEgresos);
+        caja.setBalanceFinal(balanceFinal);
+
+        caja.setEstadoCaja(EstadoCaja.CERRADA);
+        caja.setCerradoEn(LocalDateTime.now(AR)); // 👈 si tu campo se llama distinto, ajustalo
 
         return cajaDiariaRepository.save(caja);
     }
+
+    private BigDecimal nvl(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
+    }
+
     
     @Transactional
     public List<CajaEgreso> obtenerEgresosDelDia(LocalDate fecha) {
@@ -186,5 +281,68 @@ public class CajaService {
     	
     	return pedidosYa.save(ingreso);
     	
+    }
+    
+    
+    public CajaMetaResponseDTO obtenerMeta(LocalDate fecha) {
+
+        return cajaDiariaRepository.findByFecha(fecha)
+                .map(c -> new CajaMetaResponseDTO(
+                        true,
+                        c.getFecha(),
+                        c.getEstadoCaja() != null ? c.getEstadoCaja().name() : null, // si es enum
+                        c.getCerradoEn()
+                ))
+                .orElseGet(() -> new CajaMetaResponseDTO(
+                        false,
+                        fecha,
+                        null,
+                        null
+                ));
+    }
+    
+    
+    //METODOS PRIVADOS
+    
+    private CajaDiaria resolverCajaParaEgreso(Long idCaja, LocalDate fecha) {
+
+        // Si viene idCaja, lo validamos contra DB
+        if (idCaja != null) {
+            CajaDiaria caja = cajaDiariaRepository.findById(idCaja)
+                    .orElseThrow(() -> new IllegalArgumentException("No existe la caja con id " + idCaja));
+
+            if (!caja.getFecha().equals(fecha)) {
+                throw new IllegalArgumentException("La caja indicada no corresponde a la fecha " + fecha);
+            }
+
+            return caja;
+        }
+
+        // Si no viene idCaja, buscamos por fecha; si no existe, creamos ABIERTA
+        return cajaDiariaRepository.findByFecha(fecha)
+                .orElseGet(() -> crearCajaAbiertaSiNoExiste(fecha));
+    }
+
+    private CajaDiaria crearCajaAbiertaSiNoExiste(LocalDate fecha) {
+        try {
+            CajaDiaria nueva = CajaDiaria.builder()
+                    .fecha(fecha)
+                    .estadoCaja(EstadoCaja.ABIERTA)
+                    .ingresosEfectivo(BigDecimal.ZERO)
+                    .ingresosTransferencia(BigDecimal.ZERO)
+                    .ingresosPedidosYa(BigDecimal.ZERO)
+                    .ingresosTotales(BigDecimal.ZERO)
+                    .mermas(BigDecimal.ZERO)
+                    .totalEgresos(BigDecimal.ZERO)
+                    .balanceFinal(BigDecimal.ZERO)
+                    .build();
+
+            return cajaDiariaRepository.save(nueva);
+
+        } catch (DataIntegrityViolationException ex) {
+            // Si entraron 2 requests al mismo tiempo y ya la creó otro, la re-lee.
+            return cajaDiariaRepository.findByFecha(fecha)
+                    .orElseThrow(() -> new RuntimeException("No se pudo crear/obtener la caja del día " + fecha));
+        }
     }
 }

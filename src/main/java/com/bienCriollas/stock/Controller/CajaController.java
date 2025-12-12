@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bienCriollas.stock.Dto.BalanceResponseDTO;
 import com.bienCriollas.stock.Dto.CajaEstadoDTO;
+import com.bienCriollas.stock.Dto.CajaMetaResponseDTO;
 import com.bienCriollas.stock.Dto.CajaResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
@@ -84,6 +85,14 @@ public class CajaController {
 
     	CajaDiaria response = cajaService.registrarCierreDeCaja(fecha);
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/meta")
+    public ResponseEntity<CajaMetaResponseDTO> meta(
+            @RequestParam("fecha")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha
+    ) {
+        return ResponseEntity.ok(cajaService.obtenerMeta(fecha));
     }
 
 }
