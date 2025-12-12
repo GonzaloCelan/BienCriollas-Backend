@@ -50,6 +50,14 @@ public class Pedido {
     @Column(name = "tipo_pago", nullable = false, length = 20)
     private TipoPago tipoPago;
 
+    // --- Total efectivo ---
+    @Column(name = "monto_efectivo", nullable = false, precision = 12, scale = 2)
+    private BigDecimal montoEfectivo;
+    
+    // --- Total transferencia ---
+    @Column(name = "monto_transferencia", nullable = false, precision = 12, scale = 2)
+    private BigDecimal montoTransferencia;
+    
     // --- Total del pedido ---
     @Column(name = "total_pedido", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPedido;

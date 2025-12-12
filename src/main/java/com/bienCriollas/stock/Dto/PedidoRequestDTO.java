@@ -11,6 +11,8 @@ public record PedidoRequestDTO (
 	String tipoPago,
 	String numeroPedidoPedidosYa,
 	LocalTime horaEntrega,
+	BigDecimal montoEfectivo,
+	BigDecimal montoTransferencia,
 	BigDecimal totalPedido,
 	List<PedidoDetalleRequestDTO> detalles	
 		

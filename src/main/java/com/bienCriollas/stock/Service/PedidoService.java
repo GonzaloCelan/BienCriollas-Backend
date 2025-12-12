@@ -49,69 +49,125 @@ public class PedidoService {
 	@Transactional
 	public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO) {
 
-	    // 1) Crear el pedido (sin guardar aún)
+	    // 1) Parsear enums una sola vez
+	    TipoVenta tipoVenta = pedidoDTO.tipoVenta() != null
+	            ? Enum.valueOf(TipoVenta.class, pedidoDTO.tipoVenta())
+	            : null;
+
+	    TipoPago tipoPago = pedidoDTO.tipoPago() != null
+	            ? Enum.valueOf(TipoPago.class, pedidoDTO.tipoPago())
+	            : null;
+
+	    // 2) Crear el pedido base (sin total ni montos todavía)
 	    Pedido nuevoPedido = Pedido.builder()
 	            .cliente(pedidoDTO.cliente())
-	            .tipoVenta(pedidoDTO.tipoVenta() != null
-	                    ? Enum.valueOf(TipoVenta.class, pedidoDTO.tipoVenta())
-	                    : null)
-	            .tipoPago(pedidoDTO.tipoPago() != null
-	                    ? Enum.valueOf(TipoPago.class, pedidoDTO.tipoPago())
-	                    : null)
-	            .totalPedido(null)  // se actualizará luego
+	            .tipoVenta(tipoVenta)
+	            .tipoPago(tipoPago)
+	            .totalPedido(null)  // se setea después
 	            .numeroPedidoPedidosYa(pedidoDTO.numeroPedidoPedidosYa())
 	            .horarioEntrega(pedidoDTO.horaEntrega() != null ? pedidoDTO.horaEntrega() : null)
 	            .estado(TipoEstado.PENDIENTE)
-	            .fechaCreacion(LocalDate.now())// Estado inicial
+	            .fechaCreacion(LocalDate.now())
 	            .build();
-	    
-	   
 
-	    // 2) Mapear los detalles → usando el objeto Pedido y la entidad Variedad
+	    // 3) Mapear detalles y descontar stock
 	    List<DetallePedido> detallesPedidos = pedidoDTO.detalles().stream()
 	            .map(p -> {
 	                VariedadEmpanada variedad = variedadEmpanadaRepository
 	                        .findById(p.idVariedad())
 	                        .orElseThrow(() -> new RuntimeException(
 	                                "No se encontró la variedad con id " + p.idVariedad()));
-	                
-	              
-	                //calcular el precio total del pedido, por cada variedad
-	                BigDecimal subTotal = variedadEmpanadaService.calcularPrecioTotalPedido(p.idVariedad(), p.cantidad());
-	                
-	                
+
+	                BigDecimal subTotal = variedadEmpanadaService
+	                        .calcularPrecioTotalPedido(p.idVariedad(), p.cantidad());
+
 	                DetallePedido detallePedido = DetallePedido.builder()
-	                        .pedido(nuevoPedido)                 // 👈 relación, no id
-	                        .variedad(variedad)                  // 👈 relación, no id
+	                        .pedido(nuevoPedido)
+	                        .variedad(variedad)
 	                        .cantidad(p.cantidad())
 	                        .precioUnitario(variedad.getPrecio_unitario())
 	                        .subtotal(subTotal)
 	                        .build();
-	                
-	               // Descontar el stock de la variedad
-	              stockService.descontarStockVariedad(p.idVariedad(), p.cantidad());
+
+	                // Descontar el stock
+	                stockService.descontarStockVariedad(p.idVariedad(), p.cantidad());
 
 	                return detallePedido;
 	            })
 	            .toList();
-	    
-	 //  Calcular el total del pedido sumando los subtotales
-	    BigDecimal totalPedido = detallesPedidos.stream()
-	        .map(DetallePedido::getSubtotal)
-	        .reduce(BigDecimal.ZERO, BigDecimal::add);
-	    
 
-	    // 3) Setear la lista en el pedido (lado inverso) y el total
-	    nuevoPedido.setTotalPedido(pedidoDTO.totalPedido() != null ? pedidoDTO.totalPedido() : totalPedido);
+	    // 4) Calcular el total del pedido (sumando subtotales)
+	    BigDecimal totalCalculado = detallesPedidos.stream()
+	            .map(DetallePedido::getSubtotal)
+	            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+	    BigDecimal totalPedido = pedidoDTO.totalPedido() != null
+	            ? pedidoDTO.totalPedido()
+	            : totalCalculado;
+
+	    // 5) Calcular montos según tipo de pago
+	    BigDecimal montoEfectivo = BigDecimal.ZERO;
+	    BigDecimal montoTransferencia = BigDecimal.ZERO;
+
+	    if (tipoPago != null) {
+	        switch (tipoPago) {
+	            case EFECTIVO:
+	                // Todo el total va a efectivo
+	                montoEfectivo = totalPedido;
+	                montoTransferencia = BigDecimal.ZERO;
+	                break;
+
+	            case TRANSFERENCIA:
+	                // Todo el total va a transferencia
+	                montoEfectivo = BigDecimal.ZERO;
+	                montoTransferencia = totalPedido;
+	                break;
+
+	            case COMBINADO:
+	                // Usamos lo que viene del DTO
+	                BigDecimal dtoEfectivo = pedidoDTO.montoEfectivo() != null
+	                        ? pedidoDTO.montoEfectivo()
+	                        : BigDecimal.ZERO;
+
+	                BigDecimal dtoTransfer = pedidoDTO.montoTransferencia() != null
+	                        ? pedidoDTO.montoTransferencia()
+	                        : BigDecimal.ZERO;
+
+	                // Validaciones básicas (opcional pero recomendado)
+	                if (dtoEfectivo.compareTo(BigDecimal.ZERO) < 0 ||
+	                        dtoTransfer.compareTo(BigDecimal.ZERO) < 0) {
+	                    throw new IllegalArgumentException("Los montos de pago no pueden ser negativos");
+	                }
+
+	                BigDecimal suma = dtoEfectivo.add(dtoTransfer);
+	                if (suma.compareTo(totalPedido) != 0) {
+	                    throw new IllegalArgumentException(
+	                            "La suma de efectivo + transferencia (" + suma +
+	                            ") debe ser igual al total del pedido (" + totalPedido + ")");
+	                }
+
+	                montoEfectivo = dtoEfectivo;
+	                montoTransferencia = dtoTransfer;
+	                break;
+
+	            default:
+	                // otros tipos si en el futuro aparecen
+	                break;
+	        }
+	    }
+
+	    // 6) Setear total, montos y detalles en el pedido
+	    nuevoPedido.setTotalPedido(totalPedido);
+	    nuevoPedido.setMontoEfectivo(montoEfectivo);
+	    nuevoPedido.setMontoTransferencia(montoTransferencia);
 	    nuevoPedido.setDetalles(detallesPedidos);
-	    
 
-	    // 4) Guardar solo el pedido → por cascade ALL se guardan también los detalles
+	    // 7) Guardar
 	    pedidoRepository.save(nuevoPedido);
 
-	    // 5) Mapear a DTO de respuesta y devolver
-	    PedidoResponseDTO pedidoResponseDTO = new PedidoResponseDTO(
-	    		nuevoPedido.getIdPedido(),
+	    // 8) DTO de respuesta
+	    return new PedidoResponseDTO(
+	            nuevoPedido.getIdPedido(),
 	            nuevoPedido.getCliente(),
 	            nuevoPedido.getTipoVenta() != null ? nuevoPedido.getTipoVenta().name() : null,
 	            nuevoPedido.getTipoPago() != null ? nuevoPedido.getTipoPago().name() : null,
@@ -120,10 +176,8 @@ public class PedidoService {
 	            nuevoPedido.getTotalPedido(),
 	            TipoEstado.PENDIENTE
 	    );
-	    
-	return pedidoResponseDTO;
-	}	
-	
+	}
+
 	
 	
 	//Metodo para actualizar el estado de un pedido
