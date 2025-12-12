@@ -22,4 +22,6 @@ public interface IngresoPedidosYaRepository extends JpaRepository<IngresoPedidos
 	    Optional<BigDecimal> totalPorFecha(@Param("fecha") LocalDate fecha);
 
     IngresoPedidosYa findByFecha(LocalDate fecha);
+    
+    IngresoPedidosYa findTopByFechaOrderByIdIngresoDesc(LocalDate fecha);
 }

@@ -41,28 +41,40 @@ public class CajaService {
     private final IngresoPedidosYaRepository pedidosYa;
 
     
-    
+  
+ 
     @Transactional
-     public CajaResponseDTO registrarIngresos(LocalDate fecha) {
-        
+    public CajaResponseDTO registrarIngresos(LocalDate fecha) {
+
         EstadisticaDTO datos = estadisticaService.obtenerEstadisticasPorFecha(fecha);
 
-        IngresoPedidosYa pedidosYaIngreso = pedidosYa.findByFecha(fecha);
-     
+        // Usamos el nuevo método que nos devuelve el último registro de esa fecha
+        IngresoPedidosYa pedidosYaIngreso = pedidosYa.findTopByFechaOrderByIdIngresoDesc(fecha);
 
-     // ✔ Si no hay registro para esa fecha → null
+        // Si no hay ningún registro para esa fecha, 'pedidosYaIngreso' será null
         BigDecimal totalPedidosYa = pedidosYaIngreso != null 
-                ? pedidosYaIngreso.getMonto()
+                ? pedidosYaIngreso.getMonto() 
                 : null;
-        
+
+        // Ahora sumamos el monto de PedidosYa a la transferencia
+        BigDecimal transferenciaBase = (datos.totalTransferencia() != null)
+                ? datos.totalTransferencia()
+                : BigDecimal.ZERO;
+
+        BigDecimal totalTransferenciaConPedidosYa = (totalPedidosYa != null)
+                ? transferenciaBase.add(totalPedidosYa)
+                : transferenciaBase;
+
         return new CajaResponseDTO(
-            datos.totalIngresos(),
-            datos.totalEfectivo(),
-            datos.totalTransferencia(),
-            datos.totalMermasImporte(),
-            totalPedidosYa
+                datos.totalIngresos(),
+                datos.totalEfectivo(),
+                totalTransferenciaConPedidosYa,
+                datos.totalMermasImporte(),
+                totalPedidosYa
         );
     }
+
+
     
     //METODO PARA REGISTRAR EGRESO
     @Transactional
