@@ -10,14 +10,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bienCriollas.stock.Model.Empleado;
 import com.bienCriollas.stock.Service.EmpleadoService;
+import com.bienCriollas.stock.Service.PedidoService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/empleados")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class EmpleadoController {
 
-    @Autowired
-    private EmpleadoService empleadoService;
+
+    private final EmpleadoService empleadoService;
 
     @GetMapping
     public List<Empleado> obtenerEmpleados() {
