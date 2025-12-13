@@ -216,23 +216,32 @@ public class PedidoService {
 	
 	@Transactional
 	public Boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado) {
+
 	    Pedido pedido = pedidoRepository.findById(idPedido)
 	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
 
-	    // 👉 estado ANTERIOR (como está guardado en la BD)
 	    TipoEstado estadoAnterior = pedido.getEstado();
 
-	    // 👉 acá ya podés detectar el caso PENDIENTE → CANCELADO
+	    // PENDIENTE -> CANCELADO
 	    if (nuevoEstado == TipoEstado.CANCELADO && estadoAnterior == TipoEstado.PENDIENTE) {
-	    	devolverStockPorCancelacion(pedido);
+
+	        devolverStockPorCancelacion(pedido);
+
+	        // ✅ Si es PEDIDOS_YA, liberamos el número para poder reutilizarlo
+	        if (pedido.getTipoVenta() == TipoVenta.PEDIDOS_YA) {
+	            pedido.setNumeroPedidoPedidosYa(null);
+	        }
+
+	        // ✅ Al cancelar, resetear montos
+	        pedido.setMontoEfectivo(BigDecimal.ZERO);
+	        pedido.setMontoTransferencia(BigDecimal.ZERO);
+	        pedido.setTotalPedido(BigDecimal.ZERO);
 	    }
 
-	    // ✅ actualizar el estado igual que antes
 	    pedido.setEstado(nuevoEstado);
 	    pedidoRepository.save(pedido);
 	    return true;
 	}
-
 	
 	
 	//Metodo para obtener todos los pedidos, con filtro opcional por estado
