@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,5 +42,29 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 	            @Param("fecha") LocalDate fecha,
 	            @Param("medio") String medio
 	    );
+	 
+	 
+	 @Query(value = """
+		        SELECT COALESCE(SUM(total_pedido), 0)
+		        FROM pedido
+		        WHERE estado = 'ENTREGADO'
+		          AND tipo_venta = 'PEDIDOS_YA'
+		          AND DATE(fecha_pedido) = :fecha
+		        """, nativeQuery = true)
+		    BigDecimal totalEntregadoPedidosYaEnFecha(@Param("fecha") LocalDate fecha);
+	 
+	 
+	 @Query(value = """
+		      SELECT COALESCE(SUM(total_pedido), 0)
+		      FROM pedido
+		      WHERE estado = 'ENTREGADO'
+		        AND tipo_venta = 'PEDIDOS_YA'
+		        AND fecha_pedido >= :desde
+		        AND fecha_pedido <  :hasta
+		      """, nativeQuery = true)
+		  BigDecimal totalEntregadoPedidosYaEntre(
+		      @Param("desde") LocalDate desde,
+		      @Param("hasta") LocalDate hasta
+		  );
 
 }

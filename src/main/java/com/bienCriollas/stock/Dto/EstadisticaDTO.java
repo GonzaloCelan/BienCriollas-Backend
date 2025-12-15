@@ -12,6 +12,7 @@ public record EstadisticaDTO(
 		BigDecimal totalIngresos,
 		BigDecimal totalEfectivo,
 		BigDecimal totalTransferencia,
+		BigDecimal totalPedidosYa,
 		Integer variedadBajoStock,
 		List<EmpanadaVendidaDTO> empanadasMasVendidas,
 		List<EmpanadaMermaDTO> empanadasPerdidas

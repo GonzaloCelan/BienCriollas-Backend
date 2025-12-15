@@ -25,6 +25,7 @@ import com.bienCriollas.stock.Model.TipoPago;
 import com.bienCriollas.stock.Model.TipoVenta;
 import com.bienCriollas.stock.Repository.MermaRepository;
 import com.bienCriollas.stock.Repository.PedidoDetalleRepository;
+import com.bienCriollas.stock.Repository.PedidoRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -36,6 +37,7 @@ public class EstadisticaService {
 	private final PedidoDetalleRepository pedidoDetalleRepository;
 	private final StockService stockService;
 	private final MermaRepository mermaRepository;
+	private final PedidoRepository pedidoRepository;
 
 	
 	// Metodo para obtener datos por dia
@@ -50,6 +52,7 @@ public class EstadisticaService {
 	    BigDecimal totalEfectivo       = calcularTotalEfectivo(fecha);
 	    BigDecimal totalTransferencia  = calcularTotalTransferencia(fecha);
 	    BigDecimal totalImporteMerma   = calcularTotalImporteMermas(fecha);
+	    BigDecimal totalPedidosYa      = calcularTotalPedidosYa(fecha);
 
 	    Integer variedadBajoStock      = calcularVariedadesStockBajo();
 
@@ -67,6 +70,7 @@ public class EstadisticaService {
 	            totalIngresos,
 	            totalEfectivo,
 	            totalTransferencia,
+	            totalPedidosYa,
 	            variedadBajoStock,
 	            empanadasMasVendidas,
 	            empanadasPerdidas
@@ -86,6 +90,8 @@ public class EstadisticaService {
 	    int totalMermas            = 0;
 	    int totalPedidos           = 0;
 
+	    BigDecimal totalPedidosYa = pedidoRepository.totalEntregadoPedidosYaEntre(desde, hasta );
+	    if (totalPedidosYa == null) totalPedidosYa = BigDecimal.ZERO;
 	    BigDecimal totalIngresos       = BigDecimal.ZERO;
 	    BigDecimal totalEfectivo       = BigDecimal.ZERO;
 	    BigDecimal totalTransferencia  = BigDecimal.ZERO;
@@ -189,6 +195,7 @@ public class EstadisticaService {
 	            totalIngresos,
 	            totalEfectivo,
 	            totalTransferencia,
+	            totalPedidosYa,
 	            variedadBajoStockMes,
 	            listaVendidasMes,
 	            listaMermasMes
@@ -306,6 +313,19 @@ public class EstadisticaService {
 	    }
 
 	    return totalCantidadVentas;
+	}
+	
+	private BigDecimal calcularTotalPedidosYa(LocalDate fecha) {
+		
+	    if (fecha == null) {
+	        fecha = LocalDate.now();
+	    }
+
+	  
+	    BigDecimal total = pedidoRepository.totalEntregadoPedidosYaEnFecha(fecha);
+
+	 
+	    return total != null ? total : BigDecimal.ZERO;
 	}
 	
 	
