@@ -244,6 +244,44 @@ public class PedidoService {
 	}
 	
 	
+	@Transactional
+	public Boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago) {
+
+	    Pedido pedido = pedidoRepository.findById(idPedido)
+	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+
+	    if (pedido.getEstado() != TipoEstado.PENDIENTE) {
+	        throw new RuntimeException("Solo se puede cambiar el tipo de pago si el pedido está PENDIENTE");
+	    }
+
+	    if (nuevoTipoPago == null) {
+	        throw new RuntimeException("El nuevo tipo de pago no puede ser null");
+	    }
+
+	    // total actual (si tenés pedido.getTotal() / getImporteTotal(), usalo mejor)
+	    BigDecimal total = pedido.getMontoEfectivo().add(pedido.getMontoTransferencia());
+
+	    switch (nuevoTipoPago) {
+	        case EFECTIVO -> {
+	            pedido.setTipoPago(TipoPago.EFECTIVO);
+	            pedido.setMontoEfectivo(total);
+	            pedido.setMontoTransferencia(BigDecimal.ZERO);
+	        }
+	        case TRANSFERENCIA -> {
+	            pedido.setTipoPago(TipoPago.TRANSFERENCIA);
+	            pedido.setMontoEfectivo(BigDecimal.ZERO);
+	            pedido.setMontoTransferencia(total);
+	        }
+	        case COMBINADO -> {
+	            // con esta firma no podés saber los montos
+	            throw new RuntimeException("Para COMBINADO tenés que enviar montoEfectivo y montoTransferencia");
+	        }
+	    }
+
+	    pedidoRepository.save(pedido);
+	    return true;
+	}
+
 	//Metodo para obtener todos los pedidos, con filtro opcional por estado
 	
 	@Transactional(readOnly = true)

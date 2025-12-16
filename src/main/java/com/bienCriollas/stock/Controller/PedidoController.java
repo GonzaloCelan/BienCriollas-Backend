@@ -20,6 +20,7 @@ import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Model.TipoEstado;
+import com.bienCriollas.stock.Model.TipoPago;
 import com.bienCriollas.stock.Service.PedidoService;
 import com.bienCriollas.stock.Service.StockService;
 
@@ -54,6 +55,22 @@ public class PedidoController {
 	    }
 
 	    Boolean response = pedidoService.actualizarEstadoPedido(id, estadoEnum);
+	    return ResponseEntity.ok(response);
+	}
+	
+	@PutMapping("/actualizar-pago/{id}/{nuevoPago}")
+	public ResponseEntity<Boolean> actualizarTipoPago(
+	        @PathVariable Long id,
+	        @PathVariable String nuevoPago) {
+
+	    TipoPago pagoEnum;
+	    try {
+	    	pagoEnum = TipoPago.valueOf(nuevoPago.toUpperCase());
+	    } catch (IllegalArgumentException e) {
+	        throw new RuntimeException("Estado inválido: " + nuevoPago);
+	    }
+
+	    Boolean response = pedidoService.actualizarTipoPago(id, pagoEnum);
 	    return ResponseEntity.ok(response);
 	}
 	
