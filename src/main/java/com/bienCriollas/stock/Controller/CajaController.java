@@ -34,11 +34,7 @@ public class CajaController {
 
     private final CajaService cajaService;
 
-    @PostMapping("/registrar")
-    public ResponseEntity<CajaEgreso> registrarEgresos(@RequestBody EgresoRequestDTO dto) {
-        return ResponseEntity.ok(cajaService.registrarEgreso(dto));
-    }
-    
+ 
     @PostMapping("/registrar-py")
     public ResponseEntity<IngresoPedidosYa> registraPedidosYa(@RequestBody PedidosYaRequestDTO dto) {
         return ResponseEntity.ok(cajaService.registrarIngresoPY(dto));

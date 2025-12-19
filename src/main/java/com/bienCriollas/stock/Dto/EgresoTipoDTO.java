@@ -5,10 +5,11 @@ import java.time.LocalDate;
 
 import com.bienCriollas.stock.Model.TipoEgreso;
 
-public record EgresoRequestDTO(
+public record EgresoTipoDTO(
+		
 		Long idCaja,
 		TipoEgreso tipoEgreso,
-		LocalDate fecha,
         String descripcion,
-        BigDecimal monto
-) {}
+        BigDecimal monto) {
+
+}

@@ -20,11 +20,13 @@ import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.CajaEgreso;
+import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.Model.EstadoCaja;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Model.MermaEmpanada;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
 import com.bienCriollas.stock.Repository.CajaEgresoRepository;
+import com.bienCriollas.stock.Repository.EgresoRepository;
 import com.bienCriollas.stock.Repository.IngresoPedidosYaRepository;
 import com.bienCriollas.stock.Repository.MermaRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
@@ -44,7 +46,7 @@ public class CajaService {
     private final EstadisticaService estadisticaService;
     private final CajaDiariaRepository cajaDiariaRepository;
     private final IngresoPedidosYaRepository pedidosYa;
-
+    private final EgresoRepository egresoRepository;
     
   
  
@@ -53,9 +55,24 @@ public class CajaService {
 
         EstadisticaDTO datos = estadisticaService.obtenerEstadisticasPorFecha(fecha);
 
+        
         // Usamos el nuevo método que nos devuelve el último registro de esa fecha
         IngresoPedidosYa pedidosYaIngreso = pedidosYa.findTopByFechaOrderByIdIngresoDesc(fecha);
+        
+        List<Egreso> egresos = egresoRepository.buscarPorFecha(fecha);
+    	
+    	BigDecimal totalEgresosDiario = BigDecimal.ZERO;
 
+        for (Egreso e : egresos) {
+            if (e.getMonto() != null) {
+            	totalEgresosDiario = totalEgresosDiario.add(e.getMonto());
+            }
+        }
+        
+        BigDecimal totalMermas = datos.totalMermasImporte();
+        BigDecimal totalEgresos = totalEgresosDiario.add(totalMermas);
+
+        
         // Si no hay ningún registro para esa fecha, 'pedidosYaIngreso' será null
         BigDecimal totalPedidosYa = pedidosYaIngreso != null 
                 ? pedidosYaIngreso.getMonto() 
@@ -74,75 +91,22 @@ public class CajaService {
                 datos.totalIngresos(),
                 datos.totalEfectivo(),
                 totalTransferenciaConPedidosYa,
-                datos.totalMermasImporte(),
+                totalEgresos,
                 totalPedidosYa
         );
     }
 
 
-    
-    //METODO PARA REGISTRAR EGRESO
-    @Transactional
-    public CajaEgreso registrarEgreso(EgresoRequestDTO request) {
-
-        if (request == null) {
-            throw new IllegalArgumentException("Request inválido");
-        }
-
-        String descripcion = request.descripcion() != null ? request.descripcion().trim() : "";
-        if (descripcion.isBlank()) {
-            throw new IllegalArgumentException("La descripción es obligatoria");
-        }
-
-        BigDecimal monto = request.monto();
-        if (monto == null || monto.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("El monto debe ser mayor a 0");
-        }
-
-        ZoneId AR = ZoneId.of("America/Argentina/Buenos_Aires");
-        LocalDate hoyAR = LocalDate.now(AR);
-
-        // ✅ si tu DTO no trae fecha, se asume HOY
-        LocalDate fecha = (request.fecha() != null) ? request.fecha() : hoyAR;
-
-        // ✅ no permitir futuro
-        if (fecha.isAfter(hoyAR)) {
-            throw new IllegalArgumentException("No se puede registrar un egreso en una fecha futura");
-        }
-
-        // ✅ si querés permitir egresos de fechas pasadas, sacá este if
-        if (!fecha.equals(hoyAR)) {
-            throw new IllegalArgumentException("Solo se permiten egresos del día de hoy");
-        }
-
-        // ✅ Resolver caja: por id si viene, sino por fecha (y si no existe, crear ABIERTA)
-        CajaDiaria caja = resolverCajaParaEgreso(request.idCaja(), fecha);
-
-        // ✅ Validar estado
-        if (caja.getEstadoCaja() == EstadoCaja.CERRADA) {
-            throw new IllegalStateException("La caja del día está cerrada. No se pueden registrar egresos.");
-        }
-
-        CajaEgreso egreso = CajaEgreso.builder()
-                .idCaja(caja.getIdCaja()) // ✅ SIEMPRE un id válido (nunca null)
-                .descripcion(descripcion)
-                .monto(monto)
-                .hora(LocalTime.now(AR))  // ✅ hora Argentina
-                .build();
-
-        return cajaEgresoRepository.save(egreso);
-    }
-
-    
+   
     
     public BalanceResponseDTO calcularBalanceDiario(LocalDate fecha) {
     	
     	EstadisticaDTO datos = estadisticaService.obtenerEstadisticasPorFecha(fecha);
-    	List<CajaEgreso> egresos = cajaEgresoRepository.obtenerEgresosDelDia(fecha);
+    	List<Egreso> egresos = egresoRepository.buscarPorFecha(fecha);
     	
     	BigDecimal totalEgresos = BigDecimal.ZERO;
 
-        for (CajaEgreso e : egresos) {
+        for (Egreso e : egresos) {
             if (e.getMonto() != null) {
                 totalEgresos = totalEgresos.add(e.getMonto());
             }
@@ -221,7 +185,9 @@ public class CajaService {
         if (caja.getEstadoCaja() == EstadoCaja.CERRADA) {
             throw new RuntimeException("La caja ya está cerrada para esta fecha.");
         }
-
+        
+        EstadisticaDTO datosParaMermas = estadisticaService.obtenerEstadisticasPorFecha(fecha);
+        BigDecimal totalMermasDiaria = datosParaMermas.totalMermasImporte();
         // 3) Traer datos del día
         CajaResponseDTO datos = this.registrarIngresos(fecha);
         BalanceResponseDTO total = this.calcularBalanceDiario(fecha);
@@ -236,7 +202,7 @@ public class CajaService {
         // ✅ PedidosYa siempre cuenta como transferencia
         BigDecimal ingresosTransferFinal = transferBase.add(ingresosPedidosYa);
 
-        BigDecimal totalMermas  = nvl(datos.totalMermas());
+        BigDecimal totalMermas  = nvl(totalMermasDiaria);
         BigDecimal totalEgresos = nvl(total.egresos());
 
         // ✅ Ingresos totales consistentes
