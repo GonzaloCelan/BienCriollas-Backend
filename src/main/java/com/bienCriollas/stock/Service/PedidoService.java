@@ -339,6 +339,8 @@ public class PedidoService {
 		Pedido pedidoExist = pedidoRepository.findById(idPedido)
 				.orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
 		
+		TipoVenta tipoVenta = pedidoExist.getTipoVenta();
+		
 		BigDecimal totalPedido = pedidoExist.getTotalPedido();
 		List<DetallePedido> pedido = detallePedidoRepository.findByPedidoIdPedido(idPedido);
 		
@@ -355,7 +357,9 @@ public class PedidoService {
 	                     detalle.getVariedad().getNombre(),
 	                    detalle.getCantidad(),
 	                    detalle.getPrecioUnitario(),
-	                    totalPedido
+	                    totalPedido,
+	                    tipoVenta
+	                    
 	            ))
 	            .toList();
 	}
