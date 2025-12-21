@@ -55,6 +55,7 @@ public class TurnoService {
         return turnoRepository.findByFechaBetween(desde, hasta);
     }
     
+    // CALCULAR HORAS TRABAJADAS
     public double calcularHorasSemana(List<Turno> turnos) {
 
         double total = 0.0;
@@ -63,10 +64,19 @@ public class TurnoService {
             LocalTime inicio = t.getHoraInicio();
             LocalTime fin = t.getHoraFin();
 
-            double horas = Duration.between(inicio, fin).toMinutes() / 60.0;
-            total += horas;
+            if (inicio == null || fin == null) continue;
+
+            long minutos = Duration.between(inicio, fin).toMinutes();
+
+            // Si cruza medianoche (ej 14:00 a 00:00), Duration da negativo o 0
+            if (minutos <= 0) {
+                minutos += 24 * 60;
+            }
+
+            total += minutos / 60.0;
         }
 
         return total;
     }
+
 }
