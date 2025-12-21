@@ -11,6 +11,7 @@ import com.bienCriollas.stock.Repository.TurnoRepository;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -57,26 +58,33 @@ public class TurnoService {
     
     // CALCULAR HORAS TRABAJADAS
     public double calcularHorasSemana(List<Turno> turnos) {
-
         double total = 0.0;
 
         for (Turno t : turnos) {
-            LocalTime inicio = t.getHoraInicio();
-            LocalTime fin = t.getHoraFin();
+            if (t.getFecha() == null || t.getHoraInicio() == null || t.getHoraFin() == null) continue;
+            
+            
+            LocalDateTime inicio = LocalDateTime.of(t.getFecha(), t.getHoraInicio());
+            LocalDateTime fin = LocalDateTime.of(t.getFecha(), t.getHoraFin());
 
-            if (inicio == null || fin == null) continue;
-
-            long minutos = Duration.between(inicio, fin).toMinutes();
-
-            // Si cruza medianoche (ej 14:00 a 00:00), Duration da negativo o 0
-            if (minutos <= 0) {
-                minutos += 24 * 60;
+            // Si termina "antes" o igual, es al día siguiente
+            if (!fin.isAfter(inicio)) {
+                fin = fin.plusDays(1);
             }
 
-            total += minutos / 60.0;
+            double horas = Duration.between(inicio, fin).toMinutes() / 60.0;
+            total += horas;
+            
+            System.out.println(
+            	    "Turno: " + t.getFecha() + " " + t.getHoraInicio() + " - " + t.getHoraFin()
+            	);
+            	System.out.println(
+            	    "Horas calculadas: " + (Duration.between(inicio, fin).toMinutes() / 60.0)
+            	);
         }
 
         return total;
     }
+
 
 }
