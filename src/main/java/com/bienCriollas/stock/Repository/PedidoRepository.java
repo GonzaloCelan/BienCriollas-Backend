@@ -15,6 +15,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.TipoEstado;
+import com.bienCriollas.stock.Model.TipoVenta;
 
 public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
@@ -66,5 +67,39 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 		      @Param("desde") LocalDate desde,
 		      @Param("hasta") LocalDate hasta
 		  );
+
+	 Page<Pedido> findByEstadoAndTipoVentaAndFechaCreacionGreaterThanEqualAndFechaCreacionLessThanOrderByFechaCreacionDesc(
+			    TipoEstado estado,
+			    TipoVenta tipoVenta,
+			    LocalDate desde,
+			    LocalDate hasta,
+			    Pageable pageable
+			);
+	 
+	 @Query(value = """
+			  SELECT COALESCE(COUNT(*), 0)
+			  FROM pedido
+			  WHERE estado = 'ENTREGADO'
+			    AND tipo_venta = 'PEDIDOS_YA'
+			    AND fecha_pedido >= :desde
+			    AND fecha_pedido <  :hasta
+			  """, nativeQuery = true)
+	 		Integer cantidadEntregadoPedidosYaEntre(
+			    @Param("desde") LocalDate desde,
+			    @Param("hasta") LocalDate hasta
+			);
+	 
+	 @Query(value = """
+			  SELECT COALESCE(COUNT(*), 0)
+			  FROM pedido
+			  WHERE estado = 'ENTREGADO'
+			    AND tipo_venta = 'PARTICULAR'
+			    AND fecha_pedido >= :desde
+			    AND fecha_pedido <  :hasta
+			  """, nativeQuery = true)
+			Integer cantidadEntregadoParticularEntre(
+			    @Param("desde") LocalDate desde,
+			    @Param("hasta") LocalDate hasta
+			);
 
 }

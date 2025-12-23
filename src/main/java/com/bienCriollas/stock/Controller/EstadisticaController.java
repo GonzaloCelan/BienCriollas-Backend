@@ -2,15 +2,24 @@ package com.bienCriollas.stock.Controller;
 
 import java.time.LocalDate;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+
+import org.springframework.data.domain.Pageable;
+
+
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
+import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.TipoEstado;
+import com.bienCriollas.stock.Model.TipoVenta;
 import com.bienCriollas.stock.Service.EstadisticaService;
 import com.bienCriollas.stock.Service.PedidoService;
 
@@ -40,4 +49,31 @@ public class EstadisticaController {
 
 	    return estadisticaService.obtenerEstadisticasPorMes(año, mes);
 	}
+	
+	
+	// ✅ DIA: /api/pedidos/entregados/dia?fecha=2025-12-22&page=0&size=20
+	  @GetMapping("/entregados/dia")
+	  public ResponseEntity<Page<Pedido>> entregadosDia(
+	      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+	      @RequestParam(required = false) TipoVenta tipoVenta,
+	      @RequestParam(defaultValue = "0") int page,
+	      @RequestParam(defaultValue = "10") int size
+	  ) {
+	    Pageable pageable = PageRequest.of(page, size);
+	    return ResponseEntity.ok(estadisticaService.listarEntregadosDelDia(fecha,tipoVenta, pageable));
+	  }
+
+	  
+	  // ✅ MES: /api/pedidos/entregados/mes?anio=2025&mes=12&page=0&size=50
+	  @GetMapping("/entregados/mes")
+	  public ResponseEntity<Page<Pedido>> entregadosMes(
+	      @RequestParam int anio,
+	      @RequestParam int mes,
+	      @RequestParam(required = false) TipoVenta tipoVenta,
+	      @RequestParam(defaultValue = "0") int page,
+	      @RequestParam(defaultValue = "10") int size
+	  ) {
+	    Pageable pageable = PageRequest.of(page, size);
+	    return ResponseEntity.ok(estadisticaService.listarEntregadosDelMes(anio, mes,tipoVenta, pageable));
+	  }
 }

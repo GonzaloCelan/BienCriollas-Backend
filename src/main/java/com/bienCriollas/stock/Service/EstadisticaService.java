@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -10,6 +11,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +51,9 @@ public class EstadisticaService {
 	    Integer totalEmpanadasVendidas = calcularTotalEmpanadasVendidas(fecha);
 	    Integer totalMermas            = calcularTotalEmpanadasPerdidas(fecha);
 	    Integer totalPedidos           = calcularTotalPedidosEmpanadas(fecha);
+	    
+	    Integer totalPedidosPY          = calcularTotalPedidosPy(fecha);
+	    Integer totalPedidosParticular  = calcularTotalPedidosParticular(fecha);
 
 	    BigDecimal totalIngresos       = calcularTotalVenta(fecha);
 	    BigDecimal totalEfectivo       = calcularTotalEfectivo(fecha);
@@ -72,9 +79,11 @@ public class EstadisticaService {
 	            totalTransferencia,
 	            totalPedidosYa,
 	            variedadBajoStock,
+	            totalPedidosPY,
+	            totalPedidosParticular,
 	            empanadasMasVendidas,
 	            empanadasPerdidas
-	    );
+	           );
 	}
 	
 	// Metodo para obtener datos por mes
@@ -85,7 +94,13 @@ public class EstadisticaService {
 	    YearMonth ym = YearMonth.of(año, mes);
 	    LocalDate desde = ym.atDay(1);
 	    LocalDate hasta = ym.atEndOfMonth();
-
+	    
+	    
+	    
+	    Integer cantidadPedidosYa = pedidoRepository.cantidadEntregadoPedidosYaEntre(desde, hasta);
+	    Integer cantidadParticular = pedidoRepository.cantidadEntregadoParticularEntre(desde, hasta);
+	    
+	    
 	    int totalEmpanadasVendidas = 0;
 	    int totalMermas            = 0;
 	    int totalPedidos           = 0;
@@ -197,11 +212,39 @@ public class EstadisticaService {
 	            totalTransferencia,
 	            totalPedidosYa,
 	            variedadBajoStockMes,
+	            cantidadPedidosYa,
+	            cantidadParticular,
 	            listaVendidasMes,
 	            listaMermasMes
 	    );
 	}
 
+	// ✅ ENTREGADOS DEL DÍA (PAGINADO)
+	@Transactional(readOnly = true)
+	public Page<Pedido> listarEntregadosDelDia(LocalDate fecha,TipoVenta tipoVenta, Pageable pageable) {
+
+	  LocalDate desde = fecha;                 // inclusive
+	  LocalDate hasta = fecha.plusDays(1);     // exclusivo
+
+	  return pedidoRepository
+	      .findByEstadoAndTipoVentaAndFechaCreacionGreaterThanEqualAndFechaCreacionLessThanOrderByFechaCreacionDesc(
+	          TipoEstado.ENTREGADO, tipoVenta ,desde, hasta, pageable
+	      );
+	}
+
+	// ✅ ENTREGADOS DEL MES (PAGINADO)
+	@Transactional(readOnly = true)
+	public Page<Pedido> listarEntregadosDelMes(int anio, int mes,TipoVenta tipoVenta, Pageable pageable) {
+
+	  LocalDate desde = LocalDate.of(anio, mes, 1);  // inclusive
+	  LocalDate hasta = desde.plusMonths(1);         // exclusivo
+
+	  return pedidoRepository
+	      .findByEstadoAndTipoVentaAndFechaCreacionGreaterThanEqualAndFechaCreacionLessThanOrderByFechaCreacionDesc(
+	          TipoEstado.ENTREGADO,tipoVenta, desde, hasta, pageable
+	      );
+	}
+	  
 	//METODOS PRIVADOS
 
 	private List<EmpanadaVendidaDTO> calcularEmpanadasVendidasPorVariedad(LocalDate fecha) {
@@ -374,7 +417,37 @@ public class EstadisticaService {
 
 	    return totalVentasTransferencia;
 	}
-
+	
+	private Integer calcularTotalPedidosPy(LocalDate fecha) {
+		
+		Integer totalPedidosPy = 0;
+		List<PedidoResponseDTO> pedidos = pedidoService.obtenerPedidosPorFecha(fecha);
+		
+		 for (PedidoResponseDTO pedido : pedidos) {
+		        
+		        if (pedido.estadoPedido() == TipoEstado.ENTREGADO && pedido.tipoVenta() == "PEDIDOS_YA") {
+		        	totalPedidosPy++;
+		        	
+		        }
+		    }
+		  return totalPedidosPy;
+	}
+	
+	
+	private Integer calcularTotalPedidosParticular(LocalDate fecha) {
+		
+		Integer totalPedidosParticular = 0;
+		List<PedidoResponseDTO> pedidos = pedidoService.obtenerPedidosPorFecha(fecha);
+		
+		 for (PedidoResponseDTO pedido : pedidos) {
+		        
+		        if (pedido.estadoPedido() == TipoEstado.ENTREGADO && pedido.tipoVenta() == "PARTICULAR") {
+		        	totalPedidosParticular++;
+		        	
+		        }
+		    }
+		  return totalPedidosParticular;
+	}
 
 	
 	private Integer calcularTotalEmpanadasPerdidas(LocalDate fecha) {
