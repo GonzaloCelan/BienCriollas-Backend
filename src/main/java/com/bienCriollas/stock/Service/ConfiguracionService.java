@@ -71,4 +71,40 @@ public class ConfiguracionService {
 	    return response;
 	}
 	
+	
+	@Transactional
+	public Boolean añadirVariedadNueva(VariedadEmpanada variedad) {
+
+		
+		if(variedad == null) {
+	        throw new IllegalArgumentException("La variedad no puede ser nula");
+	    }
+		Boolean exists = repo.existsByNombreIgnoreCase(variedad.getNombre());
+		
+	    if(!exists) {
+	    	
+	    	repo.save(variedad);
+	    	return true;
+	    } else {
+	    	return false;
+	    }
+	    
+		
+	}
+	
+	@Transactional
+	public VariedadEmpanada eliminarVariedad(Long idVariedad) {
+		
+		VariedadEmpanada variedad = repo.findById(idVariedad).orElseThrow(() -> new RuntimeException(
+                "No se encontró la variedad con id " + idVariedad));
+		
+		if(variedad != null) {
+			
+	    	variedad.setActivo(0);
+	    	repo.save(variedad);
+	    	return variedad;
+	    } else {
+	    	throw new RuntimeException("No se encontró la variedad con id " + idVariedad);
+	    }
+	}
 }

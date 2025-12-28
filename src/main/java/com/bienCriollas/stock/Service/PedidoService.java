@@ -250,8 +250,8 @@ public class PedidoService {
 	    Pedido pedido = pedidoRepository.findById(idPedido)
 	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
 
-	    if (pedido.getEstado() != TipoEstado.PENDIENTE) {
-	        throw new RuntimeException("Solo se puede cambiar el tipo de pago si el pedido está PENDIENTE");
+	    if (pedido.getEstado() != TipoEstado.PENDIENTE && pedido.getEstado() != TipoEstado.PREPARADO) {
+	        throw new RuntimeException("Solo se puede cambiar el tipo de pago si el pedido está PENDIENTE o PREPARADO");
 	    }
 
 	    if (nuevoTipoPago == null) {

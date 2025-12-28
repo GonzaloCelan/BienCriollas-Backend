@@ -29,4 +29,7 @@ public interface VariedadEmpanadaRepository extends JpaRepository<VariedadEmpana
     """)
     int actualizarPrecioUnitario(@Param("idVariedad") Long idVariedad,
                                  @Param("precioUnitario") BigDecimal precioUnitario);
+
+
+	Boolean existsByNombreIgnoreCase(String nombre);
 }
