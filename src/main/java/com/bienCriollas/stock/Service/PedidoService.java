@@ -223,11 +223,11 @@ public class PedidoService {
 	    TipoEstado estadoAnterior = pedido.getEstado();
 
 	    // PENDIENTE -> CANCELADO
-	    if (nuevoEstado == TipoEstado.CANCELADO && estadoAnterior == TipoEstado.PENDIENTE) {
+	    if (nuevoEstado == TipoEstado.CANCELADO && estadoAnterior == TipoEstado.PENDIENTE || estadoAnterior == TipoEstado.PREPARADO) {
 
 	        devolverStockPorCancelacion(pedido);
 
-	        // ✅ Si es PEDIDOS_YA, liberamos el número para poder reutilizarlo
+	        // ✅ Si es PEDIDOS_YA, liberamos el número para poder reutilizarlo 
 	        if (pedido.getTipoVenta() == TipoVenta.PEDIDOS_YA) {
 	            pedido.setNumeroPedidoPedidosYa(null);
 	        }
