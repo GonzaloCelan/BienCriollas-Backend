@@ -223,7 +223,8 @@ public class PedidoService {
 	    TipoEstado estadoAnterior = pedido.getEstado();
 
 	    // PENDIENTE -> CANCELADO
-	    if (nuevoEstado == TipoEstado.CANCELADO && estadoAnterior == TipoEstado.PENDIENTE || estadoAnterior == TipoEstado.PREPARADO) {
+	    if (nuevoEstado == TipoEstado.CANCELADO
+	            && (estadoAnterior == TipoEstado.PENDIENTE || estadoAnterior == TipoEstado.PREPARADO)) {
 
 	        devolverStockPorCancelacion(pedido);
 
