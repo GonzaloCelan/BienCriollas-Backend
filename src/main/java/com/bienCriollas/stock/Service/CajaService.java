@@ -24,6 +24,7 @@ import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.Model.EstadoCaja;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Model.MermaEmpanada;
+import com.bienCriollas.stock.Repository.BalanceMensualRepository;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
 import com.bienCriollas.stock.Repository.CajaEgresoRepository;
 import com.bienCriollas.stock.Repository.EgresoRepository;
@@ -47,6 +48,7 @@ public class CajaService {
     private final CajaDiariaRepository cajaDiariaRepository;
     private final IngresoPedidosYaRepository pedidosYa;
     private final EgresoRepository egresoRepository;
+    private final BalanceMensualRepository balanceMensualRepository;
     
   
  
@@ -223,8 +225,23 @@ public class CajaService {
 
         caja.setEstadoCaja(EstadoCaja.CERRADA);
         caja.setCerradoEn(LocalDateTime.now(AR)); // 👈 si tu campo se llama distinto, ajustalo
+        
+        
+        CajaDiaria cajaGuardada = cajaDiariaRepository.save(caja);
+     // ✅ Impactar balance mensual (1 fila por mes)
+        LocalDate mesKey = fecha.withDayOfMonth(1);
 
-        return cajaDiariaRepository.save(caja);
+        // tu balance final ya descuenta mermas, entonces el "egreso mensual" debería incluir egresos + mermas
+        BigDecimal egresoTotalMes = totalEgresos.add(totalMermas);
+
+        balanceMensualRepository.acumularMes(
+                mesKey,
+                ingresosTotales,
+                egresoTotalMes,
+                balanceFinal
+        );
+    
+        return cajaGuardada;
     }
 
     private BigDecimal nvl(BigDecimal v) {

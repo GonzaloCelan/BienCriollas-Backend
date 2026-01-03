@@ -34,15 +34,11 @@ public class VariedadEmpanada {
 	@Column(nullable = false)
 	private BigDecimal precio_unitario;
 	
-	@Column(nullable = false)
+	@Column(nullable = true)
 	private BigDecimal precio_media_docena;
 	
-	@Column(nullable = false)
+	@Column(nullable = true)
 	private BigDecimal precio_docena;
-	
-	
-	@Column(nullable = false)
-	private Integer stock_minimo_alerta;
 	
 	@Column(nullable = false)
 	private Integer activo;

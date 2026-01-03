@@ -421,6 +421,41 @@ public class PedidoService {
 	        }
 	    }
 	}
+	
+	@Transactional(readOnly = true)
+    public Page<PedidoResponseDTO> obtenerPedidosPaginadosPorEstadoYFecha(
+            TipoEstado estado,
+            LocalDate fecha,   // la fecha seleccionada en caja
+            int page,
+            int size
+    ) {
+        if (fecha == null) {
+            fecha = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+        }
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.DESC, "idPedido") // ajustá al nombre real del campo ID en tu entity
+        );
+
+        return pedidoRepository.findByEstadoAndFechaCreacion(estado, fecha, pageable)
+                .map(this::toDto);
+    }
+
+    private PedidoResponseDTO toDto(Pedido p) {
+        return new PedidoResponseDTO(
+                p.getIdPedido(),
+                p.getCliente(), // o p.getCliente().getNombre() si tenés entidad Cliente
+                p.getTipoVenta() == null ? null : p.getTipoVenta().name(), // si es enum
+                p.getTipoPago()  == null ? null : p.getTipoPago().name(),  // si es enum
+                p.getNumeroPedidoPedidosYa(), // tu campo de PedidosYa
+                p.getHorarioEntrega(),
+                p.getTotalPedido(),
+                p.getEstado()
+        );
+    }
+
 
 
 }

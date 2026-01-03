@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.bienCriollas.stock.Interface.CajaAcumuladoProjection;
 import com.bienCriollas.stock.Model.CajaDiaria;
@@ -16,21 +17,24 @@ public interface CajaDiariaRepository extends JpaRepository<CajaDiaria, Long> {
     boolean existsByFecha(LocalDate fecha);
     
     @Query(value = """
-            SELECT
-              SUM(COALESCE(ingresos_efectivo, 0))       AS acumuladoEfectivo,
-              SUM(COALESCE(ingresos_transferencia, 0)) AS acumuladoTransferencia,
-              SUM(COALESCE(ingresos_pedidosya, 0))     AS acumuladoPedidosya,
-              SUM(
-                COALESCE(ingresos_efectivo, 0) +
-                COALESCE(ingresos_transferencia, 0) +
-                COALESCE(ingresos_pedidosya, 0)
-              ) AS acumuladoTotal,
-              SUM(
-                COALESCE(mermas, 0) +
-                COALESCE(total_egresos, 0)
-              ) AS egresoAcumulado
-            FROM caja_diaria
-            WHERE estado = 'CERRADA'
-            """, nativeQuery = true)
-        CajaAcumuladoProjection obtenerAcumuladoHistoricoCajasCerradas();
+    		  SELECT
+    		    COALESCE(SUM(ingresos_efectivo), 0)       AS acumuladoEfectivo,
+    		    COALESCE(SUM(ingresos_transferencia), 0) AS acumuladoTransferencia,
+    		    COALESCE(SUM(ingresos_pedidosya), 0)     AS acumuladoPedidosya,
+    		    COALESCE(SUM(ingresos_efectivo), 0)
+    		    + COALESCE(SUM(ingresos_transferencia), 0)
+    		    + COALESCE(SUM(ingresos_pedidosya), 0)   AS acumuladoTotal,
+    		    COALESCE(SUM(mermas), 0)
+    		    + COALESCE(SUM(total_egresos), 0)        AS egresoAcumulado
+    		  FROM caja_diaria
+    		  WHERE estado = 'CERRADA'
+    		    AND fecha >= COALESCE(:desde, '1000-01-01')
+    		    AND fecha <  COALESCE(:hasta, '9999-12-31')
+    		""", nativeQuery = true)
+    		CajaAcumuladoProjection obtenerAcumuladoCajasCerradas(
+    		  @Param("desde") LocalDate desde,
+    		  @Param("hasta") LocalDate hasta
+    		);
+
+
 }

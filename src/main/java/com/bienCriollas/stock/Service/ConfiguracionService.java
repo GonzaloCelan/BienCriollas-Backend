@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import com.bienCriollas.stock.Dto.PrecioCostoVariedadDTO;
 import com.bienCriollas.stock.Dto.StockDTO;
 import com.bienCriollas.stock.Dto.VariedadEmpanadaDTO;
+import com.bienCriollas.stock.Dto.VariedadRequestDTO;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
@@ -71,40 +72,54 @@ public class ConfiguracionService {
 	    return response;
 	}
 	
-	
 	@Transactional
-	public Boolean añadirVariedadNueva(VariedadEmpanada variedad) {
+	public VariedadEmpanada añadirVariedadNueva(VariedadRequestDTO variedad) {
 
-		
-		if(variedad == null) {
+	    if (variedad == null) {
 	        throw new IllegalArgumentException("La variedad no puede ser nula");
 	    }
-		Boolean exists = repo.existsByNombreIgnoreCase(variedad.getNombre());
-		
-	    if(!exists) {
-	    	
-	    	repo.save(variedad);
-	    	return true;
-	    } else {
-	    	return false;
+
+	    String nombre = (variedad.nombre() == null) ? "" : variedad.nombre().trim();
+	    if (nombre.isBlank()) {
+	        throw new IllegalArgumentException("El nombre no puede estar vacío");
 	    }
-	    
-		
+
+	    VariedadEmpanada existente = repo.findByNombre(nombre).orElse(null);
+	    if (existente != null) return null;
+
+	    // ✅ lo que te ingresa el usuario (costo) lo guardás en precio_unitario
+	    BigDecimal precioUnitario = (variedad.precio_unitario() != null)
+	            ? variedad.precio_unitario()
+	            : BigDecimal.ZERO;
+
+	    VariedadEmpanada nuevaVariedad = new VariedadEmpanada(
+	            null,
+	            nombre,
+	            precioUnitario,     // ✅ NUNCA NULL
+	            BigDecimal.ZERO,    // precio_media_docena
+	            BigDecimal.ZERO,    // precio_docena
+	            1                   // activo
+	    );
+
+	    return repo.save(nuevaVariedad);
 	}
+
 	
 	@Transactional
-	public VariedadEmpanada eliminarVariedad(Long idVariedad) {
-		
-		VariedadEmpanada variedad = repo.findById(idVariedad).orElseThrow(() -> new RuntimeException(
-                "No se encontró la variedad con id " + idVariedad));
-		
-		if(variedad != null) {
-			
-	    	variedad.setActivo(0);
-	    	repo.save(variedad);
-	    	return variedad;
-	    } else {
-	    	throw new RuntimeException("No se encontró la variedad con id " + idVariedad);
-	    }
+	public VariedadEmpanada setActivoVariedad(Long idVariedad, boolean activo) {
+
+	    VariedadEmpanada variedad = repo.findById(idVariedad)
+	        .orElseThrow(() -> new RuntimeException("No se encontró la variedad con id " + idVariedad));
+
+	    variedad.setActivo(activo ? 1 : 0);
+	    return repo.save(variedad);
 	}
+	
+	
+	public List<VariedadEmpanada> obtenerVariedadesActivas() {
+	    return repo.findByActivo(1);
+	}
+	
+	
+	
 }

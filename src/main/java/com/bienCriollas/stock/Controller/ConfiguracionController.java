@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bienCriollas.stock.Dto.PrecioCostoVariedadDTO;
 import com.bienCriollas.stock.Dto.VariedadEmpanadaDTO;
+import com.bienCriollas.stock.Dto.VariedadRequestDTO;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
 import com.bienCriollas.stock.Service.ConfiguracionService;
 import com.bienCriollas.stock.Service.EmpleadoService;
@@ -39,21 +42,30 @@ public class ConfiguracionController {
     }
     
     @PostMapping("/agregar")
-    public ResponseEntity<Boolean> agregarVariedadNueva(
-            @RequestBody VariedadEmpanada request
+    public ResponseEntity<VariedadEmpanada> agregarVariedadNueva(
+            @RequestBody VariedadRequestDTO request
     ) {
-        Boolean response = service.añadirVariedadNueva(request);
+        VariedadEmpanada response = service.añadirVariedadNueva(request);
         
         return ResponseEntity.ok(response);
     }
     
-    @PutMapping("/eliminar")
-    public ResponseEntity<VariedadEmpanada> eliminarVariedad(
-			@RequestParam Long idVariedad
-	) {
-    	VariedadEmpanada response = service.eliminarVariedad(idVariedad);
-		
+    
+	
+    @GetMapping("/obtener-activos")
+    public ResponseEntity<List<VariedadEmpanada>> obtenerVariedadesActivas() {
+		List<VariedadEmpanada> response = service.obtenerVariedadesActivas();
 		return ResponseEntity.ok(response);
 	}
-	
+    
+    @PutMapping("/{idVariedad}/activo/{activo}")
+    public ResponseEntity<VariedadEmpanada> setActivoVariedad(
+            @PathVariable Long idVariedad,
+            @PathVariable boolean activo
+    ) {
+        VariedadEmpanada response = service.setActivoVariedad(idVariedad, activo);
+        return ResponseEntity.ok(response);
+    }
+
+    
 }

@@ -1,6 +1,7 @@
 package com.bienCriollas.stock.Repository;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,4 +33,10 @@ public interface VariedadEmpanadaRepository extends JpaRepository<VariedadEmpana
 
 
 	Boolean existsByNombreIgnoreCase(String nombre);
+
+
+	List<VariedadEmpanada> findByActivo(int i);
+
+
+	Optional<VariedadEmpanada> findByNombre(String nombre);
 }

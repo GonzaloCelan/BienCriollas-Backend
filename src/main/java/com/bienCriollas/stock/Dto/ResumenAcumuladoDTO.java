@@ -7,5 +7,6 @@ public record ResumenAcumuladoDTO(
         BigDecimal acumuladoTransferencia,
         BigDecimal acumuladoPedidosya,
         BigDecimal acumuladoTotal,
-        BigDecimal egresoAcumulado
+        BigDecimal egresoAcumulado,
+        BigDecimal balanceFinal
 ) {}

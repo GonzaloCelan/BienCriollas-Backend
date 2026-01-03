@@ -25,11 +25,6 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 	
 	 Page<Pedido> findByEstado(TipoEstado estado, Pageable pageable);
 	 
-	 Page<Pedido> findByEstadoAndFechaCreacion(
-		        TipoEstado estado,
-		        LocalDate fechaCreacion,
-		        Pageable pageable
-		);
 
 	 @Query(
 	            value = "SELECT SUM(p.total) " +
@@ -101,5 +96,8 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 			    @Param("desde") LocalDate desde,
 			    @Param("hasta") LocalDate hasta
 			);
+	 
+	 Page<Pedido> findByEstadoAndFechaCreacion(TipoEstado estado, LocalDate fechaPedido, Pageable pageable);
+
 
 }
