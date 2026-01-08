@@ -38,25 +38,20 @@ public class EgresoService {
 	private final EgresoRepository egresoRepository;
 	
 	
+	private static final ZoneId ZONA_AR = ZoneId.of("America/Argentina/Buenos_Aires");
+
 	@Transactional
 	public Egreso registrarEgreso(EgresoTipoDTO request) {
-		
-		
-		
-	    TipoEgreso tipoEgreso = request.tipoEgreso();
-	    
-		Egreso egreso = new Egreso();
-	    egreso.setTipoEgreso(tipoEgreso);
+	    Egreso egreso = new Egreso();
+	    egreso.setTipoEgreso(request.tipoEgreso());
 	    egreso.setDescripcion(request.descripcion());
 	    egreso.setMonto(request.monto());
-	    egreso.setHora(java.time.LocalTime.now());
-	    egreso.setCreadoEn(java.time.LocalDateTime.now());
-	   
+
+	    egreso.setHora(LocalTime.now(ZONA_AR));
+	    egreso.setCreadoEn(LocalDateTime.now(ZONA_AR));
+
 	    return egresoRepository.save(egreso);
-		
-		
 	}
-	
 	@Transactional
 	public EgresoResponseDTO calcularEgresoAcumulado() {
 
