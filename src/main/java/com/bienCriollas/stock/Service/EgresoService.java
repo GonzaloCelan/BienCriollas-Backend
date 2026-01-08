@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -42,6 +42,7 @@ public class EgresoService {
 
 	@Transactional
 	public Egreso registrarEgreso(EgresoTipoDTO request) {
+
 	    Egreso egreso = new Egreso();
 	    egreso.setTipoEgreso(request.tipoEgreso());
 	    egreso.setDescripcion(request.descripcion());
@@ -52,6 +53,8 @@ public class EgresoService {
 
 	    return egresoRepository.save(egreso);
 	}
+
+	
 	@Transactional
 	public EgresoResponseDTO calcularEgresoAcumulado() {
 
