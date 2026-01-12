@@ -72,6 +72,7 @@ public class ConfiguracionService {
 	    return response;
 	}
 	
+	
 	@Transactional
 	public VariedadEmpanada añadirVariedadNueva(VariedadRequestDTO variedad) {
 

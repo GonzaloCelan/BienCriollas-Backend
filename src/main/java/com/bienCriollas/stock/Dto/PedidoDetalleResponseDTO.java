@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Dto;
 
 import java.math.BigDecimal;
 
+import com.bienCriollas.stock.Model.TipoPago;
 import com.bienCriollas.stock.Model.TipoVenta;
 
 public record PedidoDetalleResponseDTO(
@@ -12,7 +13,8 @@ public record PedidoDetalleResponseDTO(
         Integer cantidad,
         BigDecimal precioUnitario,
         BigDecimal subtotal,
-        TipoVenta tipoVenta
+        TipoVenta tipoVenta,
+        TipoPago tipoPago
         ) {
 
 }

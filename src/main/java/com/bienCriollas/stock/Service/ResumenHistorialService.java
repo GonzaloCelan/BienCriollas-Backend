@@ -42,7 +42,7 @@ public class ResumenHistorialService {
 	private final CajaDiariaRepository cajaDiariaRepository;
 	 private final BalanceMensualRepository balanceMensualRepository;
 	 private final IngresoPedidosYaRepository ingresoPedidosYaRepository;
-	 private final PedidoRepository pedidoRepository;
+	
 	
 	 
 	 @Transactional(readOnly = true)
@@ -55,19 +55,37 @@ public class ResumenHistorialService {
 	    if (anio != null && mes != null) {
 	        desde = LocalDate.of(anio, mes, 1);
 	        hasta = desde.plusMonths(1); // [desde, hasta)
+	        
+	        BigDecimal totalPYMensual = this.obtenerTotalMensualPedidosYa(anio, mes);
+		    CajaAcumuladoProjection p = cajaDiariaRepository.obtenerAcumuladoCajasCerradas(desde, hasta);
+
+		    BigDecimal ef  = (p == null || p.getAcumuladoEfectivo() == null) ? BigDecimal.ZERO : p.getAcumuladoEfectivo();
+		    BigDecimal tr  = (p == null || p.getAcumuladoTransferencia() == null) ? BigDecimal.ZERO : p.getAcumuladoTransferencia();
+		    BigDecimal py  = totalPYMensual;
+		    BigDecimal tot = (p == null || p.getAcumuladoTotal() == null) ? BigDecimal.ZERO : p.getAcumuladoTotal();
+		    BigDecimal eg  = (p == null || p.getEgresoAcumulado() == null) ? BigDecimal.ZERO : p.getEgresoAcumulado();
+
+		    BigDecimal bf = tot.subtract(eg);
+		    return new ResumenAcumuladoDTO(ef, tr, py, tot, eg, bf);
+		}
+	    else {
+	    		        // Acumulado total histórico
+	        BigDecimal totalPYAcumulado = this.obtenerTotalAcumuladoPedidosYa();
+		    CajaAcumuladoProjection p = cajaDiariaRepository.obtenerAcumuladoCajasCerradas(null, null);
+
+		    BigDecimal ef  = (p == null || p.getAcumuladoEfectivo() == null) ? BigDecimal.ZERO : p.getAcumuladoEfectivo();
+		    BigDecimal tr  = (p == null || p.getAcumuladoTransferencia() == null) ? BigDecimal.ZERO : p.getAcumuladoTransferencia();
+		    BigDecimal py  = totalPYAcumulado;
+		    BigDecimal tot = (p == null || p.getAcumuladoTotal() == null) ? BigDecimal.ZERO : p.getAcumuladoTotal();
+		    BigDecimal eg  = (p == null || p.getEgresoAcumulado() == null) ? BigDecimal.ZERO : p.getEgresoAcumulado();
+
+		    BigDecimal bf = tot.subtract(eg);
+		    return new ResumenAcumuladoDTO(ef, tr, py, tot, eg, bf);
+	    }
+	        
 	    }
 
-	    CajaAcumuladoProjection p = cajaDiariaRepository.obtenerAcumuladoCajasCerradas(desde, hasta);
-
-	    BigDecimal ef  = (p == null || p.getAcumuladoEfectivo() == null) ? BigDecimal.ZERO : p.getAcumuladoEfectivo();
-	    BigDecimal tr  = (p == null || p.getAcumuladoTransferencia() == null) ? BigDecimal.ZERO : p.getAcumuladoTransferencia();
-	    BigDecimal py  = (p == null || p.getAcumuladoPedidosya() == null) ? BigDecimal.ZERO : p.getAcumuladoPedidosya();
-	    BigDecimal tot = (p == null || p.getAcumuladoTotal() == null) ? BigDecimal.ZERO : p.getAcumuladoTotal();
-	    BigDecimal eg  = (p == null || p.getEgresoAcumulado() == null) ? BigDecimal.ZERO : p.getEgresoAcumulado();
-
-	    BigDecimal bf = tot.subtract(eg);
-	    return new ResumenAcumuladoDTO(ef, tr, py, tot, eg, bf);
-	}
+	   
 	
 	 @Transactional(readOnly = true)
 	public List<BalanceMensualDTO> resumenMensualGrafico(Integer anio) {
@@ -121,5 +139,37 @@ public class ResumenHistorialService {
 		
 	}
 	
+	
+	private BigDecimal obtenerTotalAcumuladoPedidosYa() {
+		BigDecimal total = BigDecimal.ZERO;
+		List<IngresoPedidosYa> totalIngresosPY = ingresoPedidosYaRepository.findAll();
+		
+		for(IngresoPedidosYa ingreso : totalIngresosPY) {
+			if(ingreso.getMonto() != null) {
+				total = total.add(ingreso.getMonto());
+			}
+		}
+		
+		return total;
+		
+	}
+	
+	private BigDecimal obtenerTotalMensualPedidosYa(Integer anio, Integer mes) {
+		BigDecimal total = BigDecimal.ZERO;
+		
+		LocalDate desde = LocalDate.of(anio, mes, 1);
+		LocalDate hasta = desde.plusMonths(1); // [desde, hasta)
+		
+		List<IngresoPedidosYa> totalIngresosPY = ingresoPedidosYaRepository.findByFechaBetweenOrderByFechaAsc(desde, hasta);
+		
+		for(IngresoPedidosYa ingreso : totalIngresosPY) {
+			if(ingreso.getMonto() != null) {
+				total = total.add(ingreso.getMonto());
+			}
+		}
+		
+		return total;
+		
+	}
 	
 }

@@ -1,6 +1,7 @@
 package com.bienCriollas.stock.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -254,35 +255,25 @@ public class CajaService {
         return cajaEgresoRepository.obtenerEgresosDelDia(fecha);
     }
     
+    
     @Transactional
-    public IngresoPedidosYa registrarIngresoPY (PedidosYaRequestDTO request) {
-    	
-    	IngresoPedidosYa ingreso = IngresoPedidosYa.builder()
-    				.fecha(request.fecha())
-    				.monto(request.monto())
-    				.build();
-    	
-    	return pedidosYa.save(ingreso);
-    	
-    }
-    
-    
-    public CajaMetaResponseDTO obtenerMeta(LocalDate fecha) {
+    public IngresoPedidosYa registrarLiquidacionPedidosYa(PedidosYaRequestDTO request) {
 
-        return cajaDiariaRepository.findByFecha(fecha)
-                .map(c -> new CajaMetaResponseDTO(
-                        true,
-                        c.getFecha(),
-                        c.getEstadoCaja() != null ? c.getEstadoCaja().name() : null, // si es enum
-                        c.getCerradoEn()
-                ))
-                .orElseGet(() -> new CajaMetaResponseDTO(
-                        false,
-                        fecha,
-                        null,
-                        null
-                ));
+        if (request == null) throw new IllegalArgumentException("Request null");
+        if (request.fecha() == null) throw new IllegalArgumentException("La fecha no puede ser null");
+        if (request.monto() == null) throw new IllegalArgumentException("El monto no puede ser null");
+
+       
+        IngresoPedidosYa ingreso = IngresoPedidosYa.builder()
+                .fecha(request.fecha())
+                .monto(request.monto())
+                .build();
+
+
+        return pedidosYa.save(ingreso);
     }
+
+
     
     
     //METODOS PRIVADOS

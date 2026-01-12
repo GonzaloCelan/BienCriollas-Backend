@@ -24,4 +24,7 @@ public interface IngresoPedidosYaRepository extends JpaRepository<IngresoPedidos
     IngresoPedidosYa findByFecha(LocalDate fecha);
     
     IngresoPedidosYa findTopByFechaOrderByIdIngresoDesc(LocalDate fecha);
+    
+    List<IngresoPedidosYa> findByFechaBetweenOrderByFechaAsc(LocalDate desde, LocalDate hasta);
+
 }
