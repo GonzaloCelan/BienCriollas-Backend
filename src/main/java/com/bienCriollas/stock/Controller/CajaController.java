@@ -89,14 +89,14 @@ public class CajaController {
         return ResponseEntity.ok(response);
     }
     
-    @GetMapping("/meta")
+    /*@GetMapping("/meta")
     public ResponseEntity<CajaMetaResponseDTO> meta(
             @RequestParam("fecha")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha
     ) {
         return ResponseEntity.ok(cajaService.obtenerMeta(fecha));
     }
-    
+    */
     @GetMapping("/pedidos")
  
     public ResponseEntity<Page<PedidoResponseDTO>> obtenerPedidosPorEstadoYFecha(
