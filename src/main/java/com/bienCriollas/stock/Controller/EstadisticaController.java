@@ -1,6 +1,7 @@
 package com.bienCriollas.stock.Controller;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 
 
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
+import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.TipoEstado;
 import com.bienCriollas.stock.Model.TipoVenta;
@@ -31,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 public class EstadisticaController {
 
 	private final EstadisticaService estadisticaService;
+	private final PedidoService pedidoService;
 		
 	@GetMapping("/{fecha}")
 	public ResponseEntity<EstadisticaDTO> obtenerEstadisticaPorFecha(@PathVariable 
@@ -76,4 +79,31 @@ public class EstadisticaController {
 	    Pageable pageable = PageRequest.of(page, size);
 	    return ResponseEntity.ok(estadisticaService.listarEntregadosDelMes(anio, mes,tipoVenta, pageable));
 	  }
+	  
+	  
+	  
+	  @GetMapping("/pedidos")
+	  
+	    public ResponseEntity<Page<PedidoResponseDTO>> obtenerPedidosPorEstadoYFecha(
+	            @RequestParam TipoEstado estado,
+
+	            // opcional: si no viene, toma "hoy" (Argentina)
+	            @RequestParam(required = false)
+	            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+	            LocalDate fecha,
+
+	            @RequestParam(defaultValue = "0") int page,
+	            @RequestParam(defaultValue = "50") int size
+	    ) {
+	        if (fecha == null) {
+	            fecha = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+	        }
+
+	        Page<PedidoResponseDTO> result =
+	                pedidoService.obtenerPedidosPaginadosPorEstadoYFecha(estado, fecha, page, size);
+
+	        return result.isEmpty()
+	                ? ResponseEntity.noContent().build()
+	                : ResponseEntity.ok(result);
+	    }
 }
