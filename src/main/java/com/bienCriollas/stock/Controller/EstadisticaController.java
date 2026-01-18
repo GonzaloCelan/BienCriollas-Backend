@@ -54,6 +54,18 @@ public class EstadisticaController {
 	}
 	
 	
+	// 📊 ÚLTIMOS 7 DÍAS (incluye hoy)
+    @GetMapping("/ultimos-7-dias")
+    public ResponseEntity<EstadisticaDTO> obtenerEstadisticasUltimos7Dias() {
+
+        EstadisticaDTO dto = estadisticaService.obtenerEstadisticasUltimos7Dias();
+
+        return (dto != null)
+                ? ResponseEntity.ok(dto)
+                : ResponseEntity.noContent().build();
+    }
+	
+	
 	// ✅ DIA: /api/pedidos/entregados/dia?fecha=2025-12-22&page=0&size=20
 	  @GetMapping("/entregados/dia")
 	  public ResponseEntity<Page<Pedido>> entregadosDia(

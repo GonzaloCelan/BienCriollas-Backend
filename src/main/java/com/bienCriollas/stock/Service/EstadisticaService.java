@@ -219,6 +219,136 @@ public class EstadisticaService {
 	    );
 	}
 
+	
+	// Metodo para obtener datos de ultimos 7 dias
+	@Transactional(readOnly = true)
+	public EstadisticaDTO obtenerEstadisticasUltimos7Dias() {
+
+	    LocalDate hoy   = LocalDate.now();
+	    LocalDate desde = hoy.minusDays(6);
+	    LocalDate hasta = hoy; // inclusivo para el loop diario
+
+	    // para repositorios (>= desde AND < hasta)
+	    LocalDate hastaRepo = hoy.plusDays(1);
+
+	    Integer cantidadPedidosYa = pedidoRepository
+	            .cantidadEntregadoPedidosYaEntre(desde, hastaRepo);
+
+	    Integer cantidadParticular = pedidoRepository
+	            .cantidadEntregadoParticularEntre(desde, hastaRepo);
+
+	    int totalEmpanadasVendidas = 0;
+	    int totalMermas            = 0;
+	    int totalPedidos           = 0;
+
+	    BigDecimal totalPedidosYa = pedidoRepository
+	            .totalEntregadoPedidosYaEntre(desde, hastaRepo);
+	    if (totalPedidosYa == null) totalPedidosYa = BigDecimal.ZERO;
+
+	    BigDecimal totalIngresos      = BigDecimal.ZERO;
+	    BigDecimal totalEfectivo      = BigDecimal.ZERO;
+	    BigDecimal totalTransferencia = BigDecimal.ZERO;
+	    BigDecimal totalMermasImporte = BigDecimal.ZERO;
+
+	    Map<String, Integer>    vendidasPorVariedad       = new HashMap<>();
+	    Map<String, Integer>    mermasPorVariedadCantidad = new HashMap<>();
+	    Map<String, BigDecimal> mermasPorVariedadImporte  = new HashMap<>();
+
+	    for (LocalDate dia = desde; !dia.isAfter(hasta); dia = dia.plusDays(1)) {
+
+	        EstadisticaDTO estDia = obtenerEstadisticasPorFecha(dia);
+	        if (estDia == null) continue;
+
+	        totalEmpanadasVendidas += estDia.totalEmpanadasVendidas() != null
+	                ? estDia.totalEmpanadasVendidas() : 0;
+
+	        totalMermas += estDia.totalMermas() != null
+	                ? estDia.totalMermas() : 0;
+
+	        totalPedidos += estDia.totalPedidos() != null
+	                ? estDia.totalPedidos() : 0;
+
+	        if (estDia.totalIngresos() != null) {
+	            totalIngresos = totalIngresos.add(estDia.totalIngresos());
+	        }
+	        if (estDia.totalEfectivo() != null) {
+	            totalEfectivo = totalEfectivo.add(estDia.totalEfectivo());
+	        }
+	        if (estDia.totalTransferencia() != null) {
+	            totalTransferencia = totalTransferencia.add(estDia.totalTransferencia());
+	        }
+
+	        // Ventas por variedad
+	        if (estDia.empanadasMasVendidas() != null) {
+	            for (EmpanadaVendidaDTO v : estDia.empanadasMasVendidas()) {
+	                vendidasPorVariedad.merge(
+	                        v.nombre(),
+	                        v.cantidad(),
+	                        Integer::sum
+	                );
+	            }
+	        }
+
+	        // Mermas por variedad
+	        if (estDia.empanadasPerdidas() != null) {
+	            for (EmpanadaMermaDTO m : estDia.empanadasPerdidas()) {
+
+	                mermasPorVariedadCantidad.merge(
+	                        m.nombre(),
+	                        m.cantidad(),
+	                        Integer::sum
+	                );
+
+	                BigDecimal importeMerma = m.montoPerdido() != null
+	                        ? m.montoPerdido()
+	                        : BigDecimal.ZERO;
+
+	                mermasPorVariedadImporte.merge(
+	                        m.nombre(),
+	                        importeMerma,
+	                        BigDecimal::add
+	                );
+
+	                totalMermasImporte = totalMermasImporte.add(importeMerma);
+	            }
+	        }
+	    }
+
+	    List<EmpanadaVendidaDTO> listaVendidas = vendidasPorVariedad.entrySet()
+	            .stream()
+	            .map(e -> new EmpanadaVendidaDTO(e.getKey(), e.getValue()))
+	            .sorted(Comparator.comparing(EmpanadaVendidaDTO::cantidad).reversed())
+	            .collect(Collectors.toList());
+
+	    List<EmpanadaMermaDTO> listaMermas = mermasPorVariedadCantidad.entrySet()
+	            .stream()
+	            .map(e -> new EmpanadaMermaDTO(
+	                    e.getKey(),
+	                    e.getValue(),
+	                    mermasPorVariedadImporte.getOrDefault(e.getKey(), BigDecimal.ZERO)
+	            ))
+	            .sorted(Comparator.comparing(EmpanadaMermaDTO::cantidad).reversed())
+	            .collect(Collectors.toList());
+
+	    Integer variedadBajoStock = 0;
+
+	    return new EstadisticaDTO(
+	            totalEmpanadasVendidas,
+	            totalMermas,
+	            totalMermasImporte,
+	            totalPedidos,
+	            totalIngresos,
+	            totalEfectivo,
+	            totalTransferencia,
+	            totalPedidosYa,
+	            variedadBajoStock,
+	            cantidadPedidosYa,
+	            cantidadParticular,
+	            listaVendidas,
+	            listaMermas
+	    );
+	}
+
 	// ✅ ENTREGADOS DEL DÍA (PAGINADO)
 	@Transactional(readOnly = true)
 	public Page<Pedido> listarEntregadosDelDia(LocalDate fecha,TipoVenta tipoVenta, Pageable pageable) {
@@ -231,6 +361,9 @@ public class EstadisticaService {
 	          TipoEstado.ENTREGADO, tipoVenta ,desde, hasta, pageable
 	      );
 	}
+	
+	
+	
 
 	// ✅ ENTREGADOS DEL MES (PAGINADO)
 	@Transactional(readOnly = true)
