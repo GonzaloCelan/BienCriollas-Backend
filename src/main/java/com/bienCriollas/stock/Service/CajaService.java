@@ -203,7 +203,7 @@ public class CajaService {
                 : BigDecimal.ZERO;
 
         // ✅ PedidosYa siempre cuenta como transferencia
-        BigDecimal ingresosTransferFinal = transferBase.add(ingresosPedidosYa);
+        BigDecimal ingresosTransferFinal = transferBase;
 
         BigDecimal totalMermas  = nvl(totalMermasDiaria);
         BigDecimal totalEgresos = nvl(total.egresos());
