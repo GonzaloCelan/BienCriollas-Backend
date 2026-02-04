@@ -85,6 +85,15 @@ Principios aplicados:
 
 ---
 
+## 🎨 Frontend
+
+El frontend fue desarrollado como una capa de presentación básica para
+consumir la API, utilizando JavaScript y herramientas de asistencia
+basadas en inteligencia artificial.
+
+El objetivo del proyecto se centra en el backend y en la lógica de negocio.
+
+
 ## 🧪 Estado del proyecto
 
 Proyecto en evolución continua.
