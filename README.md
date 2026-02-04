@@ -1,4 +1,4 @@
-# Bien Criollas – Sistema de Gestión Gastronómica
+# Sistema de Gestión Gastronómica
 
 Backend desarrollado en **Java + Spring Boot** para la gestión integral de un emprendimiento gastronómico.
 El sistema centraliza pedidos, control de stock, caja diaria, egresos y estadísticas de negocio, modelando
@@ -112,7 +112,18 @@ Apuntando a demostrar:
 
 ---
 
-## 📌 Nota
+---
 
-Este repositorio corresponde únicamente al **backend** del sistema.
-El frontend se encuentra desacoplado y consume los endpoints REST expuestos por esta API.
+## 🔒 Acceso y entorno
+
+Este sistema se encuentra actualmente desplegado y en uso real
+en un entorno productivo.
+
+Por razones de seguridad y consistencia de datos:
+- No se expone una URL pública de prueba
+- No se proveen credenciales de acceso
+- No se recomienda consumir la API directamente
+
+El objetivo de este repositorio es mostrar el diseño, la arquitectura
+y la lógica de negocio del backend.
+
