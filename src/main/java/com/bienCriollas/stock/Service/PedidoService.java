@@ -40,9 +40,11 @@ public class PedidoService {
 
 	private final PedidoRepository pedidoRepository;
 	
-	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
+	
 	private final StockService stockService;
 	private final VariedadEmpanadaService variedadEmpanadaService;
+	
+	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
 	private final PedidoDetalleRepository detallePedidoRepository;
 	private final CajaDiariaRepository cajaDiariaRepository;
 	private final StockRepository stockRepository;

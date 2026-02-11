@@ -6,11 +6,15 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import com.bienCriollas.stock.Model.DetallePedido;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.TipoEstado;
 
+
+
+@Repository
 public interface PedidoDetalleRepository extends JpaRepository<DetallePedido, Long> {
 
 	List<DetallePedido> findByPedidoIdPedido(Long idPedido);
