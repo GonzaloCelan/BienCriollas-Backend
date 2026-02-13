@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,19 +12,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bienCriollas.stock.Dto.BalanceMensualDTO;
 import com.bienCriollas.stock.Dto.ResumenAcumuladoDTO;
+import com.bienCriollas.stock.Interface.IResumenHistoricoService;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
-import com.bienCriollas.stock.Service.PedidoService;
-import com.bienCriollas.stock.Service.ResumenHistorialService;
 
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/resumen")
 @CrossOrigin(origins = "*")
-@RequiredArgsConstructor
 public class ResumenHistoricoController {
 
-	private final ResumenHistorialService resumenService;
+	
+	@Autowired
+	private IResumenHistoricoService resumenService;
 	
 	
 	@GetMapping("/acumulado")

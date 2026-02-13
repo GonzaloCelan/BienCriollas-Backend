@@ -21,6 +21,7 @@ import com.bienCriollas.stock.Dto.BalanceMensualDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Dto.ResumenAcumuladoDTO;
 import com.bienCriollas.stock.Interface.CajaAcumuladoProjection;
+import com.bienCriollas.stock.Interface.IResumenHistoricoService;
 import com.bienCriollas.stock.Model.BalanceMensual;
 import com.bienCriollas.stock.Model.CajaEgreso;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
@@ -37,14 +38,14 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class ResumenHistorialService {
+public class ResumenHistorialService implements IResumenHistoricoService {
 
 	private final CajaDiariaRepository cajaDiariaRepository;
 	 private final BalanceMensualRepository balanceMensualRepository;
 	 private final IngresoPedidosYaRepository ingresoPedidosYaRepository;
 	
 	
-	 
+	@Override
 	 @Transactional(readOnly = true)
 	public ResumenAcumuladoDTO obtenerAcumuladoHistorico(Integer anio, Integer mes) {
 
@@ -86,7 +87,7 @@ public class ResumenHistorialService {
 	    }
 
 	   
-	
+	@Override
 	 @Transactional(readOnly = true)
 	public List<BalanceMensualDTO> resumenMensualGrafico(Integer anio) {
 
@@ -126,7 +127,7 @@ public class ResumenHistorialService {
 	}
 	
 	 
-	 
+	@Override
 	@Transactional(readOnly = true)
 	public List<IngresoPedidosYa> obtenerPedidosYaLiquidaciones() {
 		

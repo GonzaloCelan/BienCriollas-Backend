@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,8 @@ import com.bienCriollas.stock.Dto.CajaResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
+import com.bienCriollas.stock.Interface.ICajaService;
+import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.CajaEgreso;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
@@ -34,11 +37,14 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/caja")
-@RequiredArgsConstructor
 public class CajaController {
 
-    private final CajaService cajaService;
-    private final PedidoService pedidoService;
+	
+	@Autowired
+	private ICajaService cajaService;
+	
+	@Autowired
+    private  IPedidoService pedidoService;
 
  
     @PostMapping("/registrar-py")
@@ -89,14 +95,7 @@ public class CajaController {
         return ResponseEntity.ok(response);
     }
     
-    /*@GetMapping("/meta")
-    public ResponseEntity<CajaMetaResponseDTO> meta(
-            @RequestParam("fecha")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha
-    ) {
-        return ResponseEntity.ok(cajaService.obtenerMeta(fecha));
-    }
-    */
+   
     @GetMapping("/pedidos")
  
     public ResponseEntity<Page<PedidoResponseDTO>> obtenerPedidosPorEstadoYFecha(

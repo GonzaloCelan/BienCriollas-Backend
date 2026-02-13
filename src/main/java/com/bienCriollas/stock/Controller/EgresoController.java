@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bienCriollas.stock.Dto.EgresoResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoTipoDTO;
 import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
+import com.bienCriollas.stock.Interface.IEgresoService;
 import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.Model.TipoEgreso;
 
@@ -30,8 +32,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class EgresoController {
 
-	
-		private final EgresoService service;
+		
+		@Autowired
+		private  IEgresoService service;
 		
 		@PostMapping("/registrar")
 	    public ResponseEntity<Egreso> registrarEgreso(@RequestBody EgresoTipoDTO request) {

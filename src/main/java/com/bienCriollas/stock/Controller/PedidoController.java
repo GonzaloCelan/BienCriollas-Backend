@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
+import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.TipoEstado;
 import com.bienCriollas.stock.Model.TipoPago;
 import com.bienCriollas.stock.Service.PedidoService;
@@ -28,11 +30,11 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/pedido")
-@RequiredArgsConstructor
 public class PedidoController {
 
 	
-	private final PedidoService pedidoService;
+	@Autowired
+	private IPedidoService pedidoService;
 	
 	
 	@PostMapping("/crear")

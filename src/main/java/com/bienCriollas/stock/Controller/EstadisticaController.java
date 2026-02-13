@@ -3,6 +3,7 @@ package com.bienCriollas.stock.Controller;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,6 +20,8 @@ import org.springframework.data.domain.Pageable;
 
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
+import com.bienCriollas.stock.Interface.IEstadisticaService;
+import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.TipoEstado;
 import com.bienCriollas.stock.Model.TipoVenta;
@@ -32,8 +35,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class EstadisticaController {
 
-	private final EstadisticaService estadisticaService;
-	private final PedidoService pedidoService;
+	
+	@Autowired
+	private  IEstadisticaService estadisticaService;
+	
+	@Autowired
+	private IPedidoService pedidoService;
 		
 	@GetMapping("/{fecha}")
 	public ResponseEntity<EstadisticaDTO> obtenerEstadisticaPorFecha(@PathVariable 

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
+import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.DetallePedido;
 import com.bienCriollas.stock.Model.EstadoCaja;
@@ -36,13 +37,12 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class PedidoService {
+public class PedidoService implements IPedidoService {
 
 	private final PedidoRepository pedidoRepository;
 	
 	
 	private final StockService stockService;
-	private final VariedadEmpanadaService variedadEmpanadaService;
 	
 	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
 	private final PedidoDetalleRepository detallePedidoRepository;
@@ -53,6 +53,7 @@ public class PedidoService {
 	
 	//Metodo para crear un nuevo pedido
 	
+	@Override
 	@Transactional
 	public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO) {
 
@@ -216,8 +217,9 @@ public class PedidoService {
 	
 	//Metodo para actualizar el estado de un pedido
 	
+	@Override
 	@Transactional
-	public Boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado) {
+	public boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado) {
 
 	    Pedido pedido = pedidoRepository.findById(idPedido)
 	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
@@ -247,8 +249,9 @@ public class PedidoService {
 	}
 	
 	
+	@Override
 	@Transactional
-	public Boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago) {
+	public boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago) {
 
 	    Pedido pedido = pedidoRepository.findById(idPedido)
 	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
@@ -286,7 +289,7 @@ public class PedidoService {
 	}
 
 	//Metodo para obtener todos los pedidos, con filtro opcional por estado
-	
+	@Override
 	@Transactional(readOnly = true)
 	public List<PedidoResponseDTO> obtenerTodosLosPedidos(TipoEstado estado) {
 	    
@@ -315,6 +318,7 @@ public class PedidoService {
 	
 	//Metodo para obtener todos los pedidos por fecha de creacion
 	
+	@Override
 	@Transactional(readOnly = true)
 	public List<PedidoResponseDTO> obtenerPedidosPorFecha(LocalDate fechaInicio) {
 		
@@ -336,6 +340,7 @@ public class PedidoService {
 	
 	//Metodo para obtener los detalles de un pedido por su id
 	
+	@Override
 	@Transactional(readOnly = true)
 	public List<PedidoDetalleResponseDTO> obtenerDetallesPedido(Long idPedido) {
 		
@@ -369,7 +374,7 @@ public class PedidoService {
 	            .toList();
 	}
 	
-	
+	@Override
 	@Transactional(readOnly = true)
 	public Page<PedidoResponseDTO> obtenerPedidosPaginados(TipoEstado estado, int page, int size) {
 

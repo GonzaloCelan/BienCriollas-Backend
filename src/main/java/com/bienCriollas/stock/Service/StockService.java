@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bienCriollas.stock.Dto.PerdidaEmpanadaDTO;
 import com.bienCriollas.stock.Dto.StockDTO;
 import com.bienCriollas.stock.Dto.StockResponseDTO;
+import com.bienCriollas.stock.Interface.IStockService;
 import com.bienCriollas.stock.Model.MermaEmpanada;
 import com.bienCriollas.stock.Model.Stock;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
@@ -20,7 +21,9 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class StockService {
+public class StockService implements IStockService {
+	
+	
 
 	private final StockRepository stockRepository;
 	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
@@ -28,7 +31,7 @@ public class StockService {
 	
 	
 	// Metodo para actualizar stock en lote
-	
+	@Override
 	@Transactional
 	public Boolean actualizarStock(List<StockDTO> requestList) {
 
@@ -101,6 +104,7 @@ public class StockService {
 
 	
 	// Metodo para descontar stock de una variedad
+	@Override
 	@Transactional
 	public Boolean descontarStockVariedad(Long idVariedad, Integer cantidadADescontar) {
 		
@@ -128,6 +132,7 @@ public class StockService {
 	
 	// Metodo para obtener todos los registros de stock
 	
+	@Override
 	@Transactional(readOnly = true)
 	public List<StockResponseDTO> obtenerTodosLosRegistrosDeStock() {
 		
@@ -148,6 +153,7 @@ public class StockService {
 	
 	// Metodo para obtener todos los registros de stock por variedad
 	
+	@Override
 	@Transactional(readOnly = true)
 	public List<StockResponseDTO> obtenerRegistrosDeStockPorVariedad(Long idVariedad) {
 
@@ -171,6 +177,7 @@ public class StockService {
 	
 	
 	//Metodo para registrar empandas perdidas por variedad
+	@Override
 	@Transactional
     public void registrarPerdidas(List<PerdidaEmpanadaDTO> perdidas) {
 

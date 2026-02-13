@@ -19,6 +19,7 @@ import com.bienCriollas.stock.Dto.CajaResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoRequestDTO;
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
+import com.bienCriollas.stock.Interface.ICajaService;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.CajaEgreso;
 import com.bienCriollas.stock.Model.Egreso;
@@ -40,7 +41,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class CajaService {
+public class CajaService implements ICajaService {
 
 
 
@@ -52,7 +53,7 @@ public class CajaService {
     private final BalanceMensualRepository balanceMensualRepository;
     
   
- 
+    @Override
     @Transactional
     public CajaResponseDTO registrarIngresos(LocalDate fecha) {
 
@@ -101,7 +102,7 @@ public class CajaService {
 
 
    
-    
+    @Override
     public BalanceResponseDTO calcularBalanceDiario(LocalDate fecha) {
     	
     	EstadisticaDTO datos = estadisticaService.obtenerEstadisticasPorFecha(fecha);
@@ -139,7 +140,7 @@ public class CajaService {
     }	
     
     
-   
+    @Override
     @Transactional
     public CajaDiaria registrarCierreDeCaja(LocalDate fecha) {
 
@@ -249,13 +250,13 @@ public class CajaService {
         return v != null ? v : BigDecimal.ZERO;
     }
 
-    
+    @Override
     @Transactional
     public List<CajaEgreso> obtenerEgresosDelDia(LocalDate fecha) {
         return cajaEgresoRepository.obtenerEgresosDelDia(fecha);
     }
     
-    
+    @Override
     @Transactional
     public IngresoPedidosYa registrarLiquidacionPedidosYa(PedidosYaRequestDTO request) {
 

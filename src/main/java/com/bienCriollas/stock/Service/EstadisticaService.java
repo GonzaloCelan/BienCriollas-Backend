@@ -22,6 +22,7 @@ import com.bienCriollas.stock.Dto.EmpanadaVendidaDTO;
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Dto.StockResponseDTO;
+import com.bienCriollas.stock.Interface.IEstadisticaService;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.Stock;
 import com.bienCriollas.stock.Model.TipoEstado;
@@ -35,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class EstadisticaService {
+public class EstadisticaService implements IEstadisticaService {
 	
 	private final PedidoService pedidoService;
 	private final PedidoDetalleRepository pedidoDetalleRepository;
@@ -45,6 +46,7 @@ public class EstadisticaService {
 
 	
 	// Metodo para obtener datos por dia
+	@Override
 	@Transactional(readOnly = true)
 	public EstadisticaDTO obtenerEstadisticasPorFecha(LocalDate fecha) {
 
@@ -88,6 +90,8 @@ public class EstadisticaService {
 	
 	// Metodo para obtener datos por mes
 	
+	
+	@Override
 	@Transactional(readOnly = true)
 	public EstadisticaDTO obtenerEstadisticasPorMes(int año, int mes) {
 
@@ -221,6 +225,7 @@ public class EstadisticaService {
 
 	
 	// Metodo para obtener datos de ultimos 7 dias
+	@Override
 	@Transactional(readOnly = true)
 	public EstadisticaDTO obtenerEstadisticasUltimos7Dias() {
 
@@ -350,6 +355,7 @@ public class EstadisticaService {
 	}
 
 	// ✅ ENTREGADOS DEL DÍA (PAGINADO)
+	@Override
 	@Transactional(readOnly = true)
 	public Page<Pedido> listarEntregadosDelDia(LocalDate fecha,TipoVenta tipoVenta, Pageable pageable) {
 
@@ -366,6 +372,7 @@ public class EstadisticaService {
 	
 
 	// ✅ ENTREGADOS DEL MES (PAGINADO)
+	@Override
 	@Transactional(readOnly = true)
 	public Page<Pedido> listarEntregadosDelMes(int anio, int mes,TipoVenta tipoVenta, Pageable pageable) {
 

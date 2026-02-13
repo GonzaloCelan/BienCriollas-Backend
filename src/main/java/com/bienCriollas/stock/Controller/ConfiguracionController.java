@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,9 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bienCriollas.stock.Dto.PrecioCostoVariedadDTO;
 import com.bienCriollas.stock.Dto.VariedadEmpanadaDTO;
 import com.bienCriollas.stock.Dto.VariedadRequestDTO;
+import com.bienCriollas.stock.Interface.IConfiguracionService;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
 import com.bienCriollas.stock.Service.ConfiguracionService;
-import com.bienCriollas.stock.Service.EmpleadoService;
+
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,7 +32,8 @@ import lombok.RequiredArgsConstructor;
 public class ConfiguracionController {
 
 	
-	private final ConfiguracionService service;
+	@Autowired
+	private IConfiguracionService service;
 	
 	
     @PutMapping("/precio-costo")

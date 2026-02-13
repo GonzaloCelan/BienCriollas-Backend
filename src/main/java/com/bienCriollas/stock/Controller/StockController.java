@@ -2,6 +2,7 @@ package com.bienCriollas.stock.Controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,19 +15,15 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bienCriollas.stock.Dto.PerdidaEmpanadaDTO;
 import com.bienCriollas.stock.Dto.StockDTO;
 import com.bienCriollas.stock.Dto.StockResponseDTO;
-import com.bienCriollas.stock.Model.Stock;
-import com.bienCriollas.stock.Service.StockService;
-import com.bienCriollas.stock.Service.VariedadEmpanadaService;
+import com.bienCriollas.stock.Interface.IStockService;
 
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/stock")
-@RequiredArgsConstructor
 public class StockController {
 	
-	private final StockService stockService;
-	private final VariedadEmpanadaService variedadEmpanadaService;
+	@Autowired
+	private IStockService stockService;
 	
 	// Endpoint para actualizar stock en lote
 	@PostMapping("/actualizar")
@@ -79,16 +76,7 @@ public class StockController {
 	    }
 	}
 	
-	@GetMapping("/calcularPrecio/{idVariedad}/{cantidad}")
-	public ResponseEntity<?> calcularPrecioTotalPedido(@PathVariable Long idVariedad, @PathVariable Integer cantidad) {
-	    try {
-	        // Llamar al servicio para calcular el precio total
-	        var total = variedadEmpanadaService.calcularPrecioTotalPedido(idVariedad, cantidad);
-	        return ResponseEntity.ok(total);
-	    } catch (RuntimeException e) {
-	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-	    }
-	}
+	
 	
 	// Endpoint para registar empanadas perdidas
 	@PostMapping("/perdidas")

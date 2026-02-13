@@ -13,6 +13,7 @@ import com.bienCriollas.stock.Dto.PrecioCostoVariedadDTO;
 import com.bienCriollas.stock.Dto.StockDTO;
 import com.bienCriollas.stock.Dto.VariedadEmpanadaDTO;
 import com.bienCriollas.stock.Dto.VariedadRequestDTO;
+import com.bienCriollas.stock.Interface.IConfiguracionService;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
@@ -26,11 +27,13 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class ConfiguracionService {
+public class ConfiguracionService implements IConfiguracionService {
 
 	
 	private final VariedadEmpanadaRepository repo;
 	
+	
+	@Override
 	@Transactional
 	public List<VariedadEmpanadaDTO> actualizarPrecioCostoVariedad(List<PrecioCostoVariedadDTO> requestList) {
 
@@ -73,6 +76,7 @@ public class ConfiguracionService {
 	}
 	
 	
+	@Override
 	@Transactional
 	public VariedadEmpanada añadirVariedadNueva(VariedadRequestDTO variedad) {
 
@@ -105,7 +109,7 @@ public class ConfiguracionService {
 	    return repo.save(nuevaVariedad);
 	}
 
-	
+	@Override
 	@Transactional
 	public VariedadEmpanada setActivoVariedad(Long idVariedad, boolean activo) {
 
@@ -116,7 +120,7 @@ public class ConfiguracionService {
 	    return repo.save(variedad);
 	}
 	
-	
+	@Override
 	public List<VariedadEmpanada> obtenerVariedadesActivas() {
 	    return repo.findByActivo(1);
 	}

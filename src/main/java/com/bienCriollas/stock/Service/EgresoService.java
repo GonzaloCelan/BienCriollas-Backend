@@ -20,6 +20,7 @@ import com.bienCriollas.stock.Dto.EgresoResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoTipoDTO;
 import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.Interface.EgresoMesTotalesProjection;
+import com.bienCriollas.stock.Interface.IEgresoService;
 import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.Model.TipoEgreso;
 
@@ -31,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class EgresoService {
+public class EgresoService implements IEgresoService {
 
 	
 	
@@ -39,7 +40,9 @@ public class EgresoService {
 	
 	
 	private static final ZoneId ZONA_AR = ZoneId.of("America/Argentina/Buenos_Aires");
+	
 
+	@Override
 	@Transactional
 	public Egreso registrarEgreso(EgresoTipoDTO request) {
 
@@ -54,7 +57,7 @@ public class EgresoService {
 	    return egresoRepository.save(egreso);
 	}
 
-	
+	@Override
 	@Transactional
 	public EgresoResponseDTO calcularEgresoAcumulado() {
 
@@ -74,6 +77,8 @@ public class EgresoService {
 	    return new EgresoResponseDTO(totalPersonal, totalProduccion, totalOtros);
 	  }
 	
+	
+	@Override
 	@Transactional
 	public List<Egreso> obtenerEgresosDeHoy() {
 		  ZoneId ar = ZoneId.of("America/Argentina/Buenos_Aires");
@@ -85,6 +90,8 @@ public class EgresoService {
 		  return egresoRepository.findEgresosDelDia(desde, hasta);
 		}
 	
+	
+	@Override
 	@Transactional
 	 public Page<Egreso> listarPorTipoEgreso(TipoEgreso tipo, Pageable pageable) {
 		
@@ -93,6 +100,7 @@ public class EgresoService {
 	
 	
 	
+	@Override
 	@Transactional
 	public List<EgresosPorcentajeDTO> obtenerKpisMesActualVsAnterior() {
 
