@@ -1,4 +1,4 @@
-package com.bienCriollas.stock.Model;
+package com.bienCriollas.stock.enums;
 
 public enum TipoPago {
     EFECTIVO,

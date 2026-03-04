@@ -3,7 +3,7 @@ package com.bienCriollas.stock.Dto;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 
-import com.bienCriollas.stock.Model.TipoEstado;
+import com.bienCriollas.stock.enums.TipoEstado;
 
 public record PedidoResponseDTO(
 		Long idPedido,

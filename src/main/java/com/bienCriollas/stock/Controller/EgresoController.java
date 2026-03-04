@@ -21,9 +21,8 @@ import com.bienCriollas.stock.Dto.EgresoTipoDTO;
 import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.Interface.IEgresoService;
 import com.bienCriollas.stock.Model.Egreso;
-import com.bienCriollas.stock.Model.TipoEgreso;
-
 import com.bienCriollas.stock.Service.EgresoService;
+import com.bienCriollas.stock.enums.TipoEgreso;
 
 import lombok.RequiredArgsConstructor;
 

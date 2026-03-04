@@ -27,11 +27,10 @@ import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
 import com.bienCriollas.stock.Interface.ICajaService;
 import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.CajaDiaria;
-import com.bienCriollas.stock.Model.CajaEgreso;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
-import com.bienCriollas.stock.Model.TipoEstado;
 import com.bienCriollas.stock.Service.CajaService;
 import com.bienCriollas.stock.Service.PedidoService;
+import com.bienCriollas.stock.enums.TipoEstado;
 
 import lombok.RequiredArgsConstructor;
 
@@ -53,18 +52,7 @@ public class CajaController {
     }
     
     
-    // Endpoint para obtener los egreos del dia actual o de un dia en especifico
-    @GetMapping("/egresos")
-    public ResponseEntity<List<CajaEgreso>> listaDeEgresos(
-            @RequestParam(required = false) LocalDate fecha
-    ) {
-        // si no viene fecha → usar hoy
-        LocalDate fechaConsulta = (fecha != null) ? fecha : LocalDate.now();
-
-        return ResponseEntity.ok(
-                cajaService.obtenerEgresosDelDia(fechaConsulta)
-        );
-    }
+  
     
     
     @GetMapping("/ingresos")

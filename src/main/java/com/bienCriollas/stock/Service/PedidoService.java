@@ -14,24 +14,25 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bienCriollas.stock.Dto.PedidoDetalleRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.DetallePedido;
-import com.bienCriollas.stock.Model.EstadoCaja;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.Stock;
-import com.bienCriollas.stock.Model.TipoEstado;
-import com.bienCriollas.stock.Model.TipoPago;
-import com.bienCriollas.stock.Model.TipoVenta;
 import com.bienCriollas.stock.Model.VariedadEmpanada;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
 import com.bienCriollas.stock.Repository.PedidoDetalleRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
 import com.bienCriollas.stock.Repository.StockRepository;
 import com.bienCriollas.stock.Repository.VariedadEmpanadaRepository;
+import com.bienCriollas.stock.enums.EstadoCaja;
+import com.bienCriollas.stock.enums.TipoEstado;
+import com.bienCriollas.stock.enums.TipoPago;
+import com.bienCriollas.stock.enums.TipoVenta;
 
 import lombok.RequiredArgsConstructor;
 
@@ -44,10 +45,10 @@ public class PedidoService implements IPedidoService {
 	
 	private final StockService stockService;
 	
-	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
 	private final PedidoDetalleRepository detallePedidoRepository;
 	private final CajaDiariaRepository cajaDiariaRepository;
 	private final StockRepository stockRepository;
+	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
 
 	
 	
@@ -57,13 +58,17 @@ public class PedidoService implements IPedidoService {
 	@Transactional
 	public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO) {
 
+	   
+	    
+	    if(pedidoDTO == null) {
+	    	throw new RuntimeException("El pedido no puede ser null");
+	    }
+	    
 	    // ✅ Fecha de hoy en Argentina (evita desfasajes en Railway)
-	    LocalDate fechaCaja = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
-
-	    // ✅ NUEVO: asegurar caja diaria ABIERTA para ese día
-	    asegurarCajaAbiertaDelDia(fechaCaja);
-
-	    // 1) Parsear enums una sola vez
+	    LocalDate fechaActual = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+	    
+	    
+	 // 1) Parsear enums una sola vez
 	    TipoVenta tipoVenta = pedidoDTO.tipoVenta() != null
 	            ? Enum.valueOf(TipoVenta.class, pedidoDTO.tipoVenta())
 	            : null;
@@ -72,67 +77,21 @@ public class PedidoService implements IPedidoService {
 	            ? Enum.valueOf(TipoPago.class, pedidoDTO.tipoPago())
 	            : null;
 
-	    // 2) Crear el pedido base (sin total ni montos todavía)
-	    Pedido nuevoPedido = Pedido.builder()
-	            .cliente(pedidoDTO.cliente())
-	            .tipoVenta(tipoVenta)
-	            .tipoPago(tipoPago)
-	            .totalPedido(null)  // se setea después
-	            .numeroPedidoPedidosYa(pedidoDTO.numeroPedidoPedidosYa())
-	            .horarioEntrega(pedidoDTO.horaEntrega() != null ? pedidoDTO.horaEntrega() : null)
-	            .estado(TipoEstado.PENDIENTE)
-	            .fechaCreacion(fechaCaja) // ✅ usar la misma fecha AR
-	            .build();
-
-	    // 3) Mapear detalles y descontar stock
-	    List<DetallePedido> detallesPedidos = pedidoDTO.detalles().stream()
-	            .map(p -> {
-	                VariedadEmpanada variedad = variedadEmpanadaRepository
-	                        .findById(p.idVariedad())
-	                        .orElseThrow(() -> new RuntimeException(
-	                                "No se encontró la variedad con id " + p.idVariedad()));
-
-	                BigDecimal subTotal = variedadEmpanadaService
-	                        .calcularPrecioTotalPedido(p.idVariedad(), p.cantidad());
-
-	                DetallePedido detallePedido = DetallePedido.builder()
-	                        .pedido(nuevoPedido)
-	                        .variedad(variedad)
-	                        .cantidad(p.cantidad())
-	                        .precioUnitario(variedad.getPrecio_unitario())
-	                        .subtotal(subTotal)
-	                        .build();
-
-	                // Descontar el stock
-	                stockService.descontarStockVariedad(p.idVariedad(), p.cantidad());
-
-	                return detallePedido;
-	            })
-	            .toList();
-
-	    // 4) Calcular el total del pedido (sumando subtotales)
-	    BigDecimal totalCalculado = detallesPedidos.stream()
-	            .map(DetallePedido::getSubtotal)
-	            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-	    BigDecimal totalPedido = pedidoDTO.totalPedido() != null
-	            ? pedidoDTO.totalPedido()
-	            : totalCalculado;
-
-	    // 5) Calcular montos según tipo de pago
+	    
+	    //Calcular montos según tipo de pago
 	    BigDecimal montoEfectivo = BigDecimal.ZERO;
 	    BigDecimal montoTransferencia = BigDecimal.ZERO;
 
 	    if (tipoPago != null) {
 	        switch (tipoPago) {
 	            case EFECTIVO:
-	                montoEfectivo = totalPedido;
+	                montoEfectivo = pedidoDTO.totalPedido();
 	                montoTransferencia = BigDecimal.ZERO;
 	                break;
 
 	            case TRANSFERENCIA:
 	                montoEfectivo = BigDecimal.ZERO;
-	                montoTransferencia = totalPedido;
+	                montoTransferencia = pedidoDTO.totalPedido();
 	                break;
 
 	            case COMBINADO:
@@ -149,10 +108,10 @@ public class PedidoService implements IPedidoService {
 	                }
 
 	                BigDecimal suma = dtoEfectivo.add(dtoTransfer);
-	                if (suma.compareTo(totalPedido) != 0) {
+	                if (suma.compareTo(pedidoDTO.totalPedido()) != 0) {
 	                    throw new IllegalArgumentException(
 	                            "La suma de efectivo + transferencia (" + suma +
-	                            ") debe ser igual al total del pedido (" + totalPedido + ")");
+	                            ") debe ser igual al total del pedido (" + pedidoDTO.totalPedido() + ")");
 	                }
 
 	                montoEfectivo = dtoEfectivo;
@@ -163,27 +122,64 @@ public class PedidoService implements IPedidoService {
 	                break;
 	        }
 	    }
+	    
+	    // Creamos el pedidos con estado PENDIENTE (siempre se guarda en pendiente)
 
-	    // 6) Setear total, montos y detalles en el pedido
-	    nuevoPedido.setTotalPedido(totalPedido);
-	    nuevoPedido.setMontoEfectivo(montoEfectivo);
-	    nuevoPedido.setMontoTransferencia(montoTransferencia);
-	    nuevoPedido.setDetalles(detallesPedidos);
-
-	    // 7) Guardar
-	    pedidoRepository.save(nuevoPedido);
-
-	    // 8) DTO de respuesta
+	    Pedido nuevoPedido = Pedido.builder()
+	    		.cliente(pedidoDTO.cliente())
+	    		.tipoVenta(tipoVenta)
+	    		.tipoPago(tipoPago)
+	    		.numeroPedidoPedidosYa(pedidoDTO.numeroPedidoPedidosYa() != null ? pedidoDTO.numeroPedidoPedidosYa() : null)
+	    		.fechaCreacion(fechaActual)
+	    		.montoEfectivo(montoEfectivo)
+	    		.montoTransferencia(montoTransferencia)
+	    		.totalPedido(pedidoDTO.totalPedido() != null ? pedidoDTO.totalPedido() : BigDecimal.ZERO)
+	    		.estado(TipoEstado.PENDIENTE)
+	    		.build();
+	    
+	    // Guardamos el pedido para obtener su ID y poder asociar los detalles
+	    
+	  
+	    Pedido pedidoGuardado = pedidoRepository.save(nuevoPedido);
+	    
+	    // Recorremos los detalles del pedido y los guardamos
+	    
+	    List<PedidoDetalleRequestDTO> detallesPedido = pedidoDTO.detalles();
+	    
+	    detallesPedido.forEach(det -> {
+	    	
+	    	VariedadEmpanada variedad = variedadEmpanadaRepository.findById(det.idVariedad()).orElse(null);
+	    	
+	    	if(variedad == null) {
+	    		throw new RuntimeException("No se encontró la variedad con id " + det.idVariedad());
+	    	}
+	    	
+	    	DetallePedido detalle = DetallePedido.builder()
+	    			.pedido(nuevoPedido)
+	    			.variedad(variedad)
+	    			.cantidad(det.cantidad())
+	    			.build();
+	    	
+	    	
+	    	stockService.descontarStockVariedad(variedad.getId_variedad(), det.cantidad());
+	    	detallePedidoRepository.save(detalle);
+	    	
+	    	nuevoPedido.getDetalles().add(detalle);
+	    });
+	    
+	    //Retornamos el pedido guardado como DTO
 	    return new PedidoResponseDTO(
-	            nuevoPedido.getIdPedido(),
-	            nuevoPedido.getCliente(),
-	            nuevoPedido.getTipoVenta() != null ? nuevoPedido.getTipoVenta().name() : null,
-	            nuevoPedido.getTipoPago() != null ? nuevoPedido.getTipoPago().name() : null,
-	            nuevoPedido.getNumeroPedidoPedidosYa(),
-	            nuevoPedido.getHorarioEntrega(),
-	            nuevoPedido.getTotalPedido(),
-	            TipoEstado.PENDIENTE
+	    		pedidoGuardado.getIdPedido(),
+	    		pedidoGuardado.getCliente(),
+	    		pedidoGuardado.getTipoVenta() != null ? pedidoGuardado.getTipoVenta().name() : null,
+	    		pedidoGuardado.getTipoPago() != null ? pedidoGuardado.getTipoPago().name() : null,
+	    		pedidoGuardado.getNumeroPedidoPedidosYa(),
+	    		pedidoGuardado.getHorarioEntrega(),
+	    		pedidoGuardado.getTotalPedido(),
+	    		pedidoGuardado.getEstado()
 	    );
+
+	    
 	}
 
 	
@@ -365,7 +361,6 @@ public class PedidoService implements IPedidoService {
 	                    detalle.getVariedad().getId_variedad(),
 	                     detalle.getVariedad().getNombre(),
 	                    detalle.getCantidad(),
-	                    detalle.getPrecioUnitario(),
 	                    totalPedido,
 	                    tipoVenta,
 	                    tipoPago

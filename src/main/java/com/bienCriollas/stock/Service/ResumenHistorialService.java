@@ -23,14 +23,13 @@ import com.bienCriollas.stock.Dto.ResumenAcumuladoDTO;
 import com.bienCriollas.stock.Interface.CajaAcumuladoProjection;
 import com.bienCriollas.stock.Interface.IResumenHistoricoService;
 import com.bienCriollas.stock.Model.BalanceMensual;
-import com.bienCriollas.stock.Model.CajaEgreso;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Model.Pedido;
-import com.bienCriollas.stock.Model.TipoEstado;
 import com.bienCriollas.stock.Repository.BalanceMensualRepository;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
 import com.bienCriollas.stock.Repository.IngresoPedidosYaRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
+import com.bienCriollas.stock.enums.TipoEstado;
 
 import lombok.RequiredArgsConstructor;
 

@@ -15,7 +15,7 @@ import com.bienCriollas.stock.Dto.ResumenAcumuladoDTO;
 import com.bienCriollas.stock.Interface.IResumenHistoricoService;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 
-import lombok.RequiredArgsConstructor;
+
 
 @RestController
 @RequestMapping("/api/resumen")

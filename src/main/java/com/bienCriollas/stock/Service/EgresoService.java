@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,21 +23,19 @@ import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.Interface.EgresoMesTotalesProjection;
 import com.bienCriollas.stock.Interface.IEgresoService;
 import com.bienCriollas.stock.Model.Egreso;
-import com.bienCriollas.stock.Model.TipoEgreso;
-
-
 import com.bienCriollas.stock.Repository.EgresoRepository;
+import com.bienCriollas.stock.enums.TipoEgreso;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
+
 public class EgresoService implements IEgresoService {
 
 	
-	
-	private final EgresoRepository egresoRepository;
+	@Autowired
+	private EgresoRepository egresoRepository;
 	
 	
 	private static final ZoneId ZONA_AR = ZoneId.of("America/Argentina/Buenos_Aires");

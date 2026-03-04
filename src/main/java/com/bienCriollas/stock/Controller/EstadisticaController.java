@@ -23,10 +23,10 @@ import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Interface.IEstadisticaService;
 import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.Model.Pedido;
-import com.bienCriollas.stock.Model.TipoEstado;
-import com.bienCriollas.stock.Model.TipoVenta;
 import com.bienCriollas.stock.Service.EstadisticaService;
 import com.bienCriollas.stock.Service.PedidoService;
+import com.bienCriollas.stock.enums.TipoEstado;
+import com.bienCriollas.stock.enums.TipoVenta;
 
 import lombok.RequiredArgsConstructor;
 

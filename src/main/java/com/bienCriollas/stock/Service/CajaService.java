@@ -21,19 +21,19 @@ import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
 import com.bienCriollas.stock.Interface.ICajaService;
 import com.bienCriollas.stock.Model.CajaDiaria;
-import com.bienCriollas.stock.Model.CajaEgreso;
+
 import com.bienCriollas.stock.Model.Egreso;
-import com.bienCriollas.stock.Model.EstadoCaja;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Model.MermaEmpanada;
 import com.bienCriollas.stock.Repository.BalanceMensualRepository;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
-import com.bienCriollas.stock.Repository.CajaEgresoRepository;
+
 import com.bienCriollas.stock.Repository.EgresoRepository;
 import com.bienCriollas.stock.Repository.IngresoPedidosYaRepository;
 import com.bienCriollas.stock.Repository.MermaRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
 import com.bienCriollas.stock.Repository.VariedadEmpanadaRepository;
+import com.bienCriollas.stock.enums.EstadoCaja;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +45,7 @@ public class CajaService implements ICajaService {
 
 
 
-    private final CajaEgresoRepository cajaEgresoRepository;
+
     private final EstadisticaService estadisticaService;
     private final CajaDiariaRepository cajaDiariaRepository;
     private final IngresoPedidosYaRepository pedidosYa;
@@ -192,6 +192,7 @@ public class CajaService implements ICajaService {
         
         EstadisticaDTO datosParaMermas = estadisticaService.obtenerEstadisticasPorFecha(fecha);
         BigDecimal totalMermasDiaria = datosParaMermas.totalMermasImporte();
+        
         // 3) Traer datos del día
         CajaResponseDTO datos = this.registrarIngresos(fecha);
         BalanceResponseDTO total = this.calcularBalanceDiario(fecha);
@@ -213,7 +214,7 @@ public class CajaService implements ICajaService {
         BigDecimal ingresosTotales = ingresosEfectivo.add(ingresosTransferFinal);
 
         // ✅ Balance final (ingresos - egresos - mermas)
-        BigDecimal balanceFinal = ingresosTotales.subtract(totalEgresos).subtract(totalMermas);
+        BigDecimal balanceFinal = ingresosTotales.subtract(totalEgresos);
 
         // 4) Guardar snapshot + cerrar
         caja.setIngresosEfectivo(ingresosEfectivo);
@@ -246,15 +247,17 @@ public class CajaService implements ICajaService {
         return cajaGuardada;
     }
 
+    
+    
+    
+    
+    
+    
     private BigDecimal nvl(BigDecimal v) {
         return v != null ? v : BigDecimal.ZERO;
     }
 
-    @Override
-    @Transactional
-    public List<CajaEgreso> obtenerEgresosDelDia(LocalDate fecha) {
-        return cajaEgresoRepository.obtenerEgresosDelDia(fecha);
-    }
+    
     
     @Override
     @Transactional

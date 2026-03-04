@@ -3,6 +3,8 @@ package com.bienCriollas.stock.Model;
 
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,9 +15,11 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
+@Getter @Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -25,7 +29,7 @@ import lombok.NoArgsConstructor;
 public class VariedadEmpanada {
 	
 	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	@GeneratedValue(strategy = GenerationType.SEQUENCE)
 	private Long id_variedad;
 	
 	@Column(nullable = false, unique = true)
@@ -34,11 +38,6 @@ public class VariedadEmpanada {
 	@Column(nullable = false)
 	private BigDecimal precio_unitario;
 	
-	@Column(nullable = true)
-	private BigDecimal precio_media_docena;
-	
-	@Column(nullable = true)
-	private BigDecimal precio_docena;
 	
 	@Column(nullable = false)
 	private Integer activo;

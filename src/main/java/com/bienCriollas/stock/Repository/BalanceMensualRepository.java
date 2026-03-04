@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.bienCriollas.stock.Model.BalanceMensual;
-import com.bienCriollas.stock.Model.CajaEgreso;
+
 
 
 @Repository

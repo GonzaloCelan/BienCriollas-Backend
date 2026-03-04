@@ -16,7 +16,7 @@ import org.springframework.stereotype.Repository;
 
 import com.bienCriollas.stock.Interface.EgresoMesTotalesProjection;
 import com.bienCriollas.stock.Model.Egreso;
-import com.bienCriollas.stock.Model.TipoEgreso;
+import com.bienCriollas.stock.enums.TipoEgreso;
 
 
 @Repository

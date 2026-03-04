@@ -21,10 +21,10 @@ import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Interface.IPedidoService;
-import com.bienCriollas.stock.Model.TipoEstado;
-import com.bienCriollas.stock.Model.TipoPago;
 import com.bienCriollas.stock.Service.PedidoService;
 import com.bienCriollas.stock.Service.StockService;
+import com.bienCriollas.stock.enums.TipoEstado;
+import com.bienCriollas.stock.enums.TipoPago;
 
 import lombok.RequiredArgsConstructor;
 

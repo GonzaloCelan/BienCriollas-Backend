@@ -25,12 +25,12 @@ import com.bienCriollas.stock.Dto.StockResponseDTO;
 import com.bienCriollas.stock.Interface.IEstadisticaService;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Model.Stock;
-import com.bienCriollas.stock.Model.TipoEstado;
-import com.bienCriollas.stock.Model.TipoPago;
-import com.bienCriollas.stock.Model.TipoVenta;
 import com.bienCriollas.stock.Repository.MermaRepository;
 import com.bienCriollas.stock.Repository.PedidoDetalleRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
+import com.bienCriollas.stock.enums.TipoEstado;
+import com.bienCriollas.stock.enums.TipoPago;
+import com.bienCriollas.stock.enums.TipoVenta;
 
 import lombok.RequiredArgsConstructor;
 

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.bienCriollas.stock.Dto.PrecioCostoVariedadDTO;
@@ -26,11 +27,12 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
+
 public class ConfiguracionService implements IConfiguracionService {
 
 	
-	private final VariedadEmpanadaRepository repo;
+	@Autowired
+	private VariedadEmpanadaRepository repo;
 	
 	
 	@Override
@@ -100,9 +102,7 @@ public class ConfiguracionService implements IConfiguracionService {
 	    VariedadEmpanada nuevaVariedad = new VariedadEmpanada(
 	            null,
 	            nombre,
-	            precioUnitario,     // ✅ NUNCA NULL
-	            BigDecimal.ZERO,    // precio_media_docena
-	            BigDecimal.ZERO,    // precio_docena
+	            precioUnitario,     // ✅ NUNCA NULL   // precio_docena
 	            1                   // activo
 	    );
 

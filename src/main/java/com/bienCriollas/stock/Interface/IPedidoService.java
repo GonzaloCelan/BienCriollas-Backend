@@ -8,8 +8,8 @@ import org.springframework.data.domain.Page;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
-import com.bienCriollas.stock.Model.TipoEstado;
-import com.bienCriollas.stock.Model.TipoPago;
+import com.bienCriollas.stock.enums.TipoEstado;
+import com.bienCriollas.stock.enums.TipoPago;
 
 public interface IPedidoService {
 	
@@ -26,4 +26,7 @@ public interface IPedidoService {
 	  List<PedidoDetalleResponseDTO> obtenerDetallesPedido(Long idPedido);
 	  
 	  public Page<PedidoResponseDTO> obtenerPedidosPaginados(TipoEstado estado, int page, int size);
+
+	Page<PedidoResponseDTO> obtenerPedidosPaginadosPorEstadoYFecha(TipoEstado estado, LocalDate fecha, int page,
+			int size);
 	}

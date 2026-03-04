@@ -9,7 +9,7 @@ import com.bienCriollas.stock.Dto.EgresoResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoTipoDTO;
 import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.Model.Egreso;
-import com.bienCriollas.stock.Model.TipoEgreso;
+import com.bienCriollas.stock.enums.TipoEgreso;
 
 public interface IEgresoService {
 

@@ -5,6 +5,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+
+import com.bienCriollas.stock.enums.TipoEstado;
+import com.bienCriollas.stock.enums.TipoPago;
+import com.bienCriollas.stock.enums.TipoVenta;
+
 import java.util.ArrayList;
 
 import jakarta.persistence.CascadeType;
@@ -20,11 +25,13 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "pedido")
-@Data
+@Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -63,11 +70,11 @@ public class Pedido {
     private BigDecimal totalPedido;
 
     // --- Número de pedido (solo si es PEDIDOS_YA) ---
-    @Column(name = "numero_pedido_plataforma", length = 50)
+    @Column(name = "numero_pedido_plataforma", length = 50, nullable = true)
     private String numeroPedidoPedidosYa;
 
     // --- Horario de entrega (solo si es PARTICULAR) ---
-    @Column(name = "hora_entrega")
+    @Column(name = "hora_entrega",nullable = true)
     private LocalTime horarioEntrega;
     
     @Enumerated(EnumType.STRING)
@@ -76,6 +83,8 @@ public class Pedido {
 
     @Column(name = "fecha_pedido",nullable = true)
     private LocalDate fechaCreacion;
+    
+    
     // --- Detalle de pedido ---
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

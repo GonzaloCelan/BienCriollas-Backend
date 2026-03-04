@@ -7,7 +7,7 @@ import org.springframework.data.domain.Pageable;
 
 import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.Model.Pedido;
-import com.bienCriollas.stock.Model.TipoVenta;
+import com.bienCriollas.stock.enums.TipoVenta;
 
 public interface IEstadisticaService {
 
