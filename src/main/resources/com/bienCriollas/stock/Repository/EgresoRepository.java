@@ -46,9 +46,6 @@ public interface EgresoRepository  extends JpaRepository<Egreso, Long> {
 		                                 @Param("hasta") LocalDateTime hasta);
 	
 	
-		@Query("SELECT e FROM Egreso e WHERE YEAR(e.creadoEn) = :anio AND MONTH(e.creadoEn) = :mes")
-		List<Egreso> findByMes(@Param("anio") int anio, @Param("mes") int mes);
-	
 		Page<Egreso> findByTipoEgresoOrderByCreadoEnDesc(TipoEgreso tipoEgreso, Pageable pageable);
 		
 		List<Egreso> findByCreadoEnBetweenOrderByCreadoEnDesc(LocalDateTime desde, LocalDateTime hasta);

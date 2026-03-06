@@ -26,6 +26,7 @@ import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Dto.PedidosYaRequestDTO;
 import com.bienCriollas.stock.Interface.ICajaService;
 import com.bienCriollas.stock.Interface.IPedidoService;
+import com.bienCriollas.stock.Interface.IPedidosYaService;
 import com.bienCriollas.stock.Model.CajaDiaria;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Service.CajaService;
@@ -36,43 +37,19 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/caja")
+@RequiredArgsConstructor
 public class CajaController {
 
 	
-	@Autowired
-	private ICajaService cajaService;
 	
-	@Autowired
-    private  IPedidoService pedidoService;
-
+	private final ICajaService cajaService;
+	
+	
+    private final  IPedidoService pedidoService;
+	
+	
  
-    @PostMapping("/registrar-py")
-    public ResponseEntity<IngresoPedidosYa> registraPedidosYa(@RequestBody PedidosYaRequestDTO dto) {
-        return ResponseEntity.ok(cajaService.registrarLiquidacionPedidosYa(dto));
-    }
-    
-    
-  
-    
-    
-    @GetMapping("/ingresos")
-    public ResponseEntity<CajaResponseDTO> obtenerIngresos(
-            @RequestParam LocalDate fecha
-        
-    ) {
 
-        CajaResponseDTO resp = cajaService.registrarIngresos(fecha);
-        return ResponseEntity.ok(resp);
-    }
-    
-    
-    @GetMapping("/balance")
-    public ResponseEntity<BalanceResponseDTO> obtenerBalance(
-            @RequestParam("fecha") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-
-    	BalanceResponseDTO response = cajaService.calcularBalanceDiario(fecha);
-        return ResponseEntity.ok(response);
-    }
     
     
     @PostMapping("/cierre")

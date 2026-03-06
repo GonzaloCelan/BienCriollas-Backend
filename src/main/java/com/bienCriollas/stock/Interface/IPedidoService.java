@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 
+import com.bienCriollas.stock.Dto.IngresosDiariosDTO;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
@@ -13,20 +14,22 @@ import com.bienCriollas.stock.enums.TipoPago;
 
 public interface IPedidoService {
 	
-	  PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO);
+	  public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO);
 	  
-	  boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado);
+	  public boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado);
 	  
-	  boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago);
+	  public boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago);
 	  
-	  List<PedidoResponseDTO> obtenerTodosLosPedidos(TipoEstado estado);
+	  public IngresosDiariosDTO calcularIngresosDiarios(LocalDate fecha , TipoEstado estado);
 	  
-	  List<PedidoResponseDTO> obtenerPedidosPorFecha(LocalDate fechaInicio);
+	  public List<PedidoResponseDTO> obtenerTodosLosPedidos(TipoEstado estado);
 	  
-	  List<PedidoDetalleResponseDTO> obtenerDetallesPedido(Long idPedido);
+	  public List<PedidoResponseDTO> obtenerPedidosPorFecha(LocalDate fechaInicio);
+	  
+	  public List<PedidoDetalleResponseDTO> obtenerDetallesPedido(Long idPedido);
 	  
 	  public Page<PedidoResponseDTO> obtenerPedidosPaginados(TipoEstado estado, int page, int size);
 
-	Page<PedidoResponseDTO> obtenerPedidosPaginadosPorEstadoYFecha(TipoEstado estado, LocalDate fecha, int page,
+	  public Page<PedidoResponseDTO> obtenerPedidosPaginadosPorEstadoYFecha(TipoEstado estado, LocalDate fecha, int page,
 			int size);
 	}

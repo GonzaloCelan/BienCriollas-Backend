@@ -12,12 +12,16 @@ import com.bienCriollas.stock.Model.IngresoPedidosYa;
 public interface ICajaService {
 
 	
-	public CajaResponseDTO registrarIngresos(LocalDate fecha);
-	
-	public BalanceResponseDTO calcularBalanceDiario(LocalDate fecha);
-	
-	 public CajaDiaria registrarCierreDeCaja(LocalDate fecha);
+	 CajaDiaria registrarCierreDeCaja(LocalDate fecha);
 	 
 	 
-	 public IngresoPedidosYa registrarLiquidacionPedidosYa(PedidosYaRequestDTO request);
+	 CajaDiaria obtenerCajaPorFecha(LocalDate fecha);
+
+	    
+	 List<CajaDiaria> obtenerCajasPorMes(int año, int mes);
+
+	    
+	 List<CajaDiaria> obtenerTodasLasCajas();
+	 
+
 }

@@ -7,7 +7,13 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
+import com.bienCriollas.stock.Dto.BalanceResponseDTO;
+import com.bienCriollas.stock.Dto.CajaResponseDTO;
+import com.bienCriollas.stock.Dto.EstadisticaDTO;
 import com.bienCriollas.stock.enums.EstadoCaja;
 
 @Entity
@@ -32,14 +38,8 @@ public class CajaDiaria {
     @Column(name = "ingresos_transferencia", nullable = false)
     private BigDecimal ingresosTransferencia;
 
-    @Column(name = "ingresos_pedidosya", nullable = false)
-    private BigDecimal ingresosPedidosYa;
-
     @Column(name = "ingresos_totales", nullable = false)
     private BigDecimal ingresosTotales;
-
-    @Column(name = "mermas", nullable = false)
-    private BigDecimal mermas;
 
     @Column(name = "total_egresos", nullable = false)
     private BigDecimal totalEgresos;
@@ -57,3 +57,5 @@ public class CajaDiaria {
     @Column(name = "cerrada_en", insertable = false, updatable = false)
     private LocalDateTime cerradoEn;
 }
+
+

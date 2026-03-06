@@ -25,6 +25,5 @@ public class IngresoPedidosYa {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal monto;
 
-    // opcional: si agregás el campo hora
-    // private String hora;
+ 
 }

@@ -21,14 +21,21 @@ import com.bienCriollas.stock.Dto.BalanceMensualDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Dto.ResumenAcumuladoDTO;
 import com.bienCriollas.stock.Interface.CajaAcumuladoProjection;
+import com.bienCriollas.stock.Interface.ICajaService;
+import com.bienCriollas.stock.Interface.IEgresoService;
+import com.bienCriollas.stock.Interface.IPedidosYaService;
+import com.bienCriollas.stock.Interface.IPerdidasService;
 import com.bienCriollas.stock.Interface.IResumenHistoricoService;
 import com.bienCriollas.stock.Model.BalanceMensual;
+import com.bienCriollas.stock.Model.CajaDiaria;
+import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.Model.IngresoPedidosYa;
 import com.bienCriollas.stock.Model.Pedido;
 import com.bienCriollas.stock.Repository.BalanceMensualRepository;
 import com.bienCriollas.stock.Repository.CajaDiariaRepository;
 import com.bienCriollas.stock.Repository.IngresoPedidosYaRepository;
 import com.bienCriollas.stock.Repository.PedidoRepository;
+import com.bienCriollas.stock.enums.EstadoCaja;
 import com.bienCriollas.stock.enums.TipoEstado;
 
 import lombok.RequiredArgsConstructor;
@@ -39,51 +46,89 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ResumenHistorialService implements IResumenHistoricoService {
 
-	private final CajaDiariaRepository cajaDiariaRepository;
 	 private final BalanceMensualRepository balanceMensualRepository;
 	 private final IngresoPedidosYaRepository ingresoPedidosYaRepository;
+	 
+	 private final IPedidosYaService pedidosYaService;
+	 private final ICajaService cajaService;
+	 private final IEgresoService egresoService;
+	 private final IPerdidasService perdidasService;
 	
 	
-	@Override
+	 @Override
 	 @Transactional(readOnly = true)
-	public ResumenAcumuladoDTO obtenerAcumuladoHistorico(Integer anio, Integer mes) {
+	 public ResumenAcumuladoDTO obtenerAcumuladoHistorico(Integer año, Integer mes) {
 
-	    LocalDate desde = null;
-	    LocalDate hasta = null;
+	     BigDecimal acumuladoEfectivo = BigDecimal.ZERO;
+	     BigDecimal acumuladoTransferencia = BigDecimal.ZERO;
+	     BigDecimal acumuladoPedidosya = BigDecimal.ZERO;
+	     BigDecimal acumuladoTotal = BigDecimal.ZERO;
+	     BigDecimal egresoAcumulado = BigDecimal.ZERO;
+	     BigDecimal balanceAcumulado = BigDecimal.ZERO;
 
-	    // Si viene año+mes => filtra por ese mes
-	    if (anio != null && mes != null) {
-	        desde = LocalDate.of(anio, mes, 1);
-	        hasta = desde.plusMonths(1); // [desde, hasta)
-	        
-	        BigDecimal totalPYMensual = this.obtenerTotalMensualPedidosYa(anio, mes);
-		    CajaAcumuladoProjection p = cajaDiariaRepository.obtenerAcumuladoCajasCerradas(desde, hasta);
+	     List<CajaDiaria> cajas;
+	     List<IngresoPedidosYa> liquidacionesPY;
+	     List<Egreso> egresos;
+	     List<Object[]> mermas;
 
-		    BigDecimal ef  = (p == null || p.getAcumuladoEfectivo() == null) ? BigDecimal.ZERO : p.getAcumuladoEfectivo();
-		    BigDecimal tr  = (p == null || p.getAcumuladoTransferencia() == null) ? BigDecimal.ZERO : p.getAcumuladoTransferencia();
-		    BigDecimal py  = totalPYMensual;
-		    BigDecimal tot = (p == null || p.getAcumuladoTotal() == null) ? BigDecimal.ZERO : p.getAcumuladoTotal();
-		    BigDecimal eg  = (p == null || p.getEgresoAcumulado() == null) ? BigDecimal.ZERO : p.getEgresoAcumulado();
+	     if (año != null && mes != null) {
+	         
+	         cajas          = cajaService.obtenerCajasPorMes(año, mes);
+	         liquidacionesPY = pedidosYaService.obtenerLiquidacionesPorMes(año, mes);
+	         egresos        = egresoService.obtenerEgresosPorMes(año, mes);
+	         mermas         = perdidasService.obtenerMermaPorVariedadConImportePorMes(año, mes);
+	     } else {
+	      
+	         cajas          = cajaService.obtenerTodasLasCajas();
+	         liquidacionesPY = pedidosYaService.obtenerTodasLasLiquidaciones();
+	         egresos        = egresoService.obtenerTodosLosEgresos();
+	         mermas         = perdidasService.obtenerTodasLasMermasConImporte();
+	     }
 
-		    BigDecimal bf = tot.subtract(eg);
-		    return new ResumenAcumuladoDTO(ef, tr, py, tot, eg, bf);
-		}
-	    else {
-	    		        // Acumulado total histórico
-	        BigDecimal totalPYAcumulado = this.obtenerTotalAcumuladoPedidosYa();
-		    CajaAcumuladoProjection p = cajaDiariaRepository.obtenerAcumuladoCajasCerradas(null, null);
+	     // ── INGRESOS ──
+	     acumuladoEfectivo = cajas.stream()
+	             .filter(c -> c.getEstadoCaja() == EstadoCaja.CERRADA)
+	             .map(CajaDiaria::getIngresosEfectivo)
+	             .filter(m -> m != null)
+	             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-		    BigDecimal ef  = (p == null || p.getAcumuladoEfectivo() == null) ? BigDecimal.ZERO : p.getAcumuladoEfectivo();
-		    BigDecimal tr  = (p == null || p.getAcumuladoTransferencia() == null) ? BigDecimal.ZERO : p.getAcumuladoTransferencia();
-		    BigDecimal py  = totalPYAcumulado;
-		    BigDecimal tot = (p == null || p.getAcumuladoTotal() == null) ? BigDecimal.ZERO : p.getAcumuladoTotal();
-		    BigDecimal eg  = (p == null || p.getEgresoAcumulado() == null) ? BigDecimal.ZERO : p.getEgresoAcumulado();
+	     acumuladoTransferencia = cajas.stream()
+	             .filter(c -> c.getEstadoCaja() == EstadoCaja.CERRADA)
+	             .map(CajaDiaria::getIngresosTransferencia)
+	             .filter(m -> m != null)
+	             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-		    BigDecimal bf = tot.subtract(eg);
-		    return new ResumenAcumuladoDTO(ef, tr, py, tot, eg, bf);
-	    }
-	        
-	    }
+	     acumuladoPedidosya = liquidacionesPY.stream()
+	             .map(IngresoPedidosYa::getMonto)
+	             .filter(m -> m != null)
+	             .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+	     acumuladoTotal = acumuladoEfectivo.add(acumuladoTransferencia).add(acumuladoPedidosya);
+
+	     // ── EGRESOS ──
+	     egresoAcumulado = egresos.stream()
+	             .map(Egreso::getMonto)
+	             .filter(m -> m != null)
+	             .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+	     BigDecimal totalMermas = mermas.stream()
+	             .map(r -> r[2] != null ? new BigDecimal(r[2].toString()) : BigDecimal.ZERO)
+	             .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+	     egresoAcumulado = egresoAcumulado.add(totalMermas);
+
+	     // ── BALANCE ──
+	     balanceAcumulado = acumuladoTotal.subtract(egresoAcumulado);
+
+	     return new ResumenAcumuladoDTO(
+	             acumuladoEfectivo,
+	             acumuladoTransferencia,
+	             acumuladoPedidosya,
+	             acumuladoTotal,
+	             egresoAcumulado,
+	             balanceAcumulado
+	     );
+	 }
 
 	   
 	@Override

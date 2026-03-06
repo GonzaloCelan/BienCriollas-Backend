@@ -16,9 +16,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.bienCriollas.stock.Dto.EgresoResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoTipoDTO;
+import com.bienCriollas.stock.Dto.EgresosDiariosDTO;
 import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.Interface.EgresoMesTotalesProjection;
 import com.bienCriollas.stock.Interface.IEgresoService;
@@ -26,7 +28,7 @@ import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.Repository.EgresoRepository;
 import com.bienCriollas.stock.enums.TipoEgreso;
 
-import jakarta.transaction.Transactional;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -80,6 +82,7 @@ public class EgresoService implements IEgresoService {
 	@Override
 	@Transactional
 	public List<Egreso> obtenerEgresosDeHoy() {
+		
 		  ZoneId ar = ZoneId.of("America/Argentina/Buenos_Aires");
 		  LocalDate hoy = LocalDate.now(ar);
 
@@ -87,7 +90,8 @@ public class EgresoService implements IEgresoService {
 		  LocalDateTime hasta = hoy.plusDays(1).atStartOfDay();
 
 		  return egresoRepository.findEgresosDelDia(desde, hasta);
-		}
+	}
+	
 	
 	
 	@Override
@@ -136,4 +140,25 @@ public class EgresoService implements IEgresoService {
 
         return salida;
     }
+
+	
+	@Override
+	public EgresosDiariosDTO obtenerEgresosDiarios(LocalDate fecha) {
+		
+		BigDecimal totalEgresos = egresoRepository.sumMontoByFecha(fecha);
+		
+	    return new EgresosDiariosDTO(totalEgresos != null ? totalEgresos : BigDecimal.ZERO);
+	}
+
+	@Override
+	public List<Egreso> obtenerEgresosPorMes(int año, int mes) {
+		
+			return egresoRepository.findByMes(año, mes);
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public List<Egreso> obtenerTodosLosEgresos() {
+	    return egresoRepository.findAll();
+	}
 }

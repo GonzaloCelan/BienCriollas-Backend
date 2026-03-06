@@ -1,5 +1,6 @@
 package com.bienCriollas.stock.Interface;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -7,19 +8,26 @@ import org.springframework.data.domain.Pageable;
 
 import com.bienCriollas.stock.Dto.EgresoResponseDTO;
 import com.bienCriollas.stock.Dto.EgresoTipoDTO;
+import com.bienCriollas.stock.Dto.EgresosDiariosDTO;
 import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.Model.Egreso;
 import com.bienCriollas.stock.enums.TipoEgreso;
 
 public interface IEgresoService {
 
-	public Egreso registrarEgreso(EgresoTipoDTO request);
+	Egreso registrarEgreso(EgresoTipoDTO request);
 	
-	public EgresoResponseDTO calcularEgresoAcumulado();
+	EgresoResponseDTO calcularEgresoAcumulado();
 	
-	public List<Egreso> obtenerEgresosDeHoy();
+	List<Egreso> obtenerEgresosDeHoy();
 	
-	public Page<Egreso> listarPorTipoEgreso(TipoEgreso tipo, Pageable pageable);
+	Page<Egreso> listarPorTipoEgreso(TipoEgreso tipo, Pageable pageable);
 	
-	public List<EgresosPorcentajeDTO> obtenerKpisMesActualVsAnterior();	
+	List<EgresosPorcentajeDTO> obtenerKpisMesActualVsAnterior();	
+	
+	EgresosDiariosDTO obtenerEgresosDiarios(LocalDate fecha);
+	
+	List<Egreso> obtenerEgresosPorMes(int año, int mes);
+
+	List<Egreso> obtenerTodosLosEgresos();
 }

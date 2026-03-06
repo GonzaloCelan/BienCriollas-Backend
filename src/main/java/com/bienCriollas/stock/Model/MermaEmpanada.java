@@ -12,6 +12,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,8 +34,9 @@ public class MermaEmpanada {
     @GeneratedValue(generator = "id_merma", strategy = GenerationType.IDENTITY)
     private Long idMerma;
 	
-    @Column(name = "id_variedad", nullable = false)
-    private Long idVariedad;
+	@ManyToOne
+	@JoinColumn(name = "id_variedad")
+    private VariedadEmpanada variedad;
     
     @Column(name = "fecha_registro", nullable = false)
     private LocalDateTime fechaRegistro;

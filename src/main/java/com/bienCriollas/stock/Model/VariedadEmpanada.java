@@ -35,8 +35,8 @@ public class VariedadEmpanada {
 	@Column(nullable = false, unique = true)
 	private String nombre;
 	
-	@Column(nullable = false)
-	private BigDecimal precio_unitario;
+	@Column(name = "precio_unitario", nullable = false)
+	private BigDecimal precioUnitario;
 	
 	
 	@Column(nullable = false)

@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bienCriollas.stock.Dto.IngresosDiariosDTO;
 import com.bienCriollas.stock.Dto.PedidoDetalleRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
@@ -44,10 +45,11 @@ public class PedidoService implements IPedidoService {
 	
 	
 	private final StockService stockService;
-	
+
 	private final PedidoDetalleRepository detallePedidoRepository;
-	private final CajaDiariaRepository cajaDiariaRepository;
+	
 	private final StockRepository stockRepository;
+	
 	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
 
 	
@@ -183,32 +185,6 @@ public class PedidoService implements IPedidoService {
 	}
 
 	
-	private CajaDiaria asegurarCajaAbiertaDelDia(LocalDate fechaCaja) {
-
-	    return cajaDiariaRepository.findByFecha(fechaCaja).orElseGet(() -> {
-	        try {
-	            CajaDiaria nueva = CajaDiaria.builder()
-	                    .fecha(fechaCaja)
-	                    .estadoCaja(EstadoCaja.ABIERTA) // o "ABIERTA" si lo guardás como String
-	                    .ingresosEfectivo(BigDecimal.ZERO)
-	                    .ingresosTransferencia(BigDecimal.ZERO)
-	                    .ingresosPedidosYa(BigDecimal.ZERO)
-	                    .ingresosTotales(BigDecimal.ZERO)
-	                    .mermas(BigDecimal.ZERO)
-	                    .totalEgresos(BigDecimal.ZERO)
-	                    .balanceFinal(BigDecimal.ZERO)
-	                    .build();
-
-	            return cajaDiariaRepository.save(nueva);
-
-	        } catch (DataIntegrityViolationException ex) {
-	            // Otro pedido creó la caja justo antes (por el UNIQUE(fecha))
-	            return cajaDiariaRepository.findByFecha(fechaCaja)
-	                    .orElseThrow(() -> new RuntimeException("No se pudo asegurar la caja del día " + fechaCaja));
-	        }
-	    });
-	}
-
 	
 	
 	//Metodo para actualizar el estado de un pedido
@@ -339,32 +315,25 @@ public class PedidoService implements IPedidoService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<PedidoDetalleResponseDTO> obtenerDetallesPedido(Long idPedido) {
-		
-		Pedido pedidoExist = pedidoRepository.findById(idPedido)
-				.orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
-		
-		TipoVenta tipoVenta = pedidoExist.getTipoVenta();
-		TipoPago tipoPago = pedidoExist.getTipoPago();
-		
-		BigDecimal totalPedido = pedidoExist.getTotalPedido();
-		List<DetallePedido> pedido = detallePedidoRepository.findByPedidoIdPedido(idPedido);
-		
-		if(pedido.isEmpty()) {
-			throw new RuntimeException("No se encontraron detalles para el pedido con id " + idPedido);
-		}
-		
-		
-		
-		return pedido.stream()
+
+	    Pedido pedidoExist = pedidoRepository.findById(idPedido)
+	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+
+	    List<DetallePedido> detalles = pedidoExist.getDetalles(); 
+
+	    if (detalles.isEmpty()) {
+	        throw new RuntimeException("No se encontraron detalles para el pedido con id " + idPedido);
+	    }
+
+	    return detalles.stream()
 	            .map(detalle -> new PedidoDetalleResponseDTO(
-	            		pedidoExist.getCliente(),
+	                    pedidoExist.getCliente(),
 	                    detalle.getVariedad().getId_variedad(),
-	                     detalle.getVariedad().getNombre(),
+	                    detalle.getVariedad().getNombre(),
 	                    detalle.getCantidad(),
-	                    totalPedido,
-	                    tipoVenta,
-	                    tipoPago
-	                    
+	                    pedidoExist.getTotalPedido(),
+	                    pedidoExist.getTipoVenta(),
+	                    pedidoExist.getTipoPago()
 	            ))
 	            .toList();
 	}
@@ -404,27 +373,7 @@ public class PedidoService implements IPedidoService {
 
 	
 	
-	private void devolverStockPorCancelacion(Pedido pedido) {
-
-	    // Recorremos cada detalle del pedido
-	    for (DetallePedido det : pedido.getDetalles()) {
-
-	        // ⚠️ Ajustá estos getters a como se llaman en tu entidad
-	        Long idVariedad = det.getVariedad().getId_variedad();   // ej: getVariedadEmpanada()
-	        Integer cantidad = det.getCantidad();
-
-	        // buscamos el último stock ACTIVO de esa variedad
-	        Stock ultimoStock = stockRepository
-	                .findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(idVariedad, 1);
-
-	        if (ultimoStock != null) {
-	            Integer disponibleActual = ultimoStock.getStockDisponible();
-	            ultimoStock.setStockDisponible(disponibleActual + cantidad);
-
-	            stockRepository.save(ultimoStock);
-	        }
-	    }
-	}
+	
 	
 	@Transactional(readOnly = true)
     public Page<PedidoResponseDTO> obtenerPedidosPaginadosPorEstadoYFecha(
@@ -460,6 +409,55 @@ public class PedidoService implements IPedidoService {
         );
     }
 
+
+	@Override
+	public IngresosDiariosDTO calcularIngresosDiarios(LocalDate fecha, TipoEstado estado) {
+		
+		List<Pedido> pedidos = pedidoRepository.findByFechaCreacionAndEstado(fecha, estado);
+		if(pedidos.isEmpty()) {
+			throw new RuntimeException("No se encontraron pedidos para la fecha " + fecha + " y estado " + estado);
+		}
+		
+		BigDecimal ingresosEfectivo = pedidos.stream()
+		        .filter(p -> p.getTipoVenta() != TipoVenta.PEDIDOS_YA)  
+		        .filter(p -> p.getTipoPago() == TipoPago.EFECTIVO || p.getTipoPago() == TipoPago.COMBINADO)
+		        .map(Pedido::getMontoEfectivo)
+		        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+		BigDecimal ingresosTransferencia = pedidos.stream()
+		        .filter(p -> p.getTipoVenta() != TipoVenta.PEDIDOS_YA)  
+		        .filter(p -> p.getTipoPago() == TipoPago.TRANSFERENCIA || p.getTipoPago() == TipoPago.COMBINADO)
+		        .map(Pedido::getMontoTransferencia)
+		        .reduce(BigDecimal.ZERO, BigDecimal::add);
+		
+		BigDecimal ingresoTotal = ingresosEfectivo.add(ingresosTransferencia);
+		
+		return new IngresosDiariosDTO(ingresosEfectivo, ingresosTransferencia,ingresoTotal);
+	}
+    
+	
+	private void devolverStockPorCancelacion(Pedido pedido) {
+
+	    // Recorremos cada detalle del pedido
+	    for (DetallePedido det : pedido.getDetalles()) {
+
+	        // ⚠️ Ajustá estos getters a como se llaman en tu entidad
+	        Long idVariedad = det.getVariedad().getId_variedad();   // ej: getVariedadEmpanada()
+	        Integer cantidad = det.getCantidad();
+
+	        // buscamos el último stock ACTIVO de esa variedad
+	        Stock ultimoStock = stockRepository
+	                .findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(idVariedad, 1);
+
+	        if (ultimoStock != null) {
+	            Integer disponibleActual = ultimoStock.getStockDisponible();
+	            ultimoStock.setStockDisponible(disponibleActual + cantidad);
+
+	            stockRepository.save(ultimoStock);
+	        }
+	    }
+	}
+    
 
 
 }

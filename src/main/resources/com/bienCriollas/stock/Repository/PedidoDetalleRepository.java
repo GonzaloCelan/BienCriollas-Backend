@@ -9,22 +9,27 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.bienCriollas.stock.Model.DetallePedido;
+import com.bienCriollas.stock.Model.Pedido;
+import com.bienCriollas.stock.enums.TipoEstado;
+
 
 
 @Repository
 public interface PedidoDetalleRepository extends JpaRepository<DetallePedido, Long> {
 
-	
-	
 	List<DetallePedido> findByPedidoIdPedido(Long idPedido);
 
+	@Query(value = """
+		    SELECT COALESCE(SUM(d.cantidad), 0)
+		    FROM pedido_detalle d
+		    JOIN pedido p ON p.id_pedido = d.id_pedido
+		    WHERE DATE(p.fecha_pedido) = :fecha
+		""", nativeQuery = true)
 	
-	@Query("SELECT COALESCE(SUM(d.cantidad), 0) " +
-		       "FROM DetallePedido d " +
-		       "WHERE d.pedido.fechaCreacion = :fecha")
-	Integer obtenerTotalEmpanadasVendidasEnFecha(@Param("fecha") LocalDate fecha);
+		Integer obtenerTotalEmpanadasVendidasEnFecha(@Param("fecha") LocalDate fecha);
 	
 	
+	// Esta consula retorna la cantidad de empanadas vendidas por variedad en una fecha pasada por parametro
 	
 	@Query(value = """
 		    SELECT 
@@ -40,7 +45,7 @@ public interface PedidoDetalleRepository extends JpaRepository<DetallePedido, Lo
 		""", nativeQuery = true)
 		List<Object[]> obtenerTotalEmpanadasPorVariedadEnFechaYEstado(
 		        @Param("fecha") LocalDate fecha,
-		        @Param("estado") String estado  
+		        @Param("estado") String estado  // 👈 ahora String
 		);
 
 }

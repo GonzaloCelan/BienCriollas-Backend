@@ -26,12 +26,13 @@ public interface IngresoPedidosYaRepository extends JpaRepository<IngresoPedidos
 
     IngresoPedidosYa findByFecha(LocalDate fecha);
     
+    List<IngresoPedidosYa> findAll();
+    
+    @Query("SELECT l FROM LiquidacionPedidosYa l WHERE YEAR(l.fecha) = :anio AND MONTH(l.fecha) = :mes")
+    List<IngresoPedidosYa> findByMes(@Param("anio") int anio, @Param("mes") int mes);
+    
     IngresoPedidosYa findTopByFechaOrderByIdIngresoDesc(LocalDate fecha);
     
     List<IngresoPedidosYa> findByFechaBetweenOrderByFechaAsc(LocalDate desde, LocalDate hasta);
-
-    @Query("SELECT l FROM IngresoPedidosYa l WHERE YEAR(l.fecha) = :año AND MONTH(l.fecha) = :mes")
-    List<IngresoPedidosYa> findByMes(@Param("año") int año, @Param("mes") int mes);
-
 
 }

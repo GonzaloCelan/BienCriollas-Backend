@@ -52,33 +52,7 @@ public interface MermaRepository  extends JpaRepository<MermaEmpanada, Long> {
 		    ORDER BY total_cantidad DESC
 		""", nativeQuery = true)
 		List<Object[]> obtenerMermaPorVariedadConImporte(@Param("fecha") LocalDate fecha);
-		
-		@Query(value = """
-		        SELECT
-		            v.nombre              AS nombre_variedad,
-		            SUM(m.cantidad)       AS total_cantidad,
-		            SUM(m.cantidad * v.precio_unitario) AS total_importe
-		        FROM merma_empanada m
-		        JOIN variedad_empanada v ON v.id_variedad = m.id_variedad
-		        GROUP BY v.nombre
-		        ORDER BY total_cantidad DESC
-		    """, nativeQuery = true)
-		List<Object[]> obtenerTodasLasMermasConImporte();
 
-		
-		@Query(value = """
-		        SELECT
-		            v.nombre              AS nombre_variedad,
-		            SUM(m.cantidad)       AS total_cantidad,
-		            SUM(m.cantidad * v.precio_unitario) AS total_importe
-		        FROM merma_empanada m
-		        JOIN variedad_empanada v ON v.id_variedad = m.id_variedad
-		        WHERE YEAR(m.fecha_registro) = :anio
-		        AND MONTH(m.fecha_registro) = :mes
-		        GROUP BY v.nombre
-		        ORDER BY total_cantidad DESC
-		    """, nativeQuery = true)
-		List<Object[]> obtenerMermaPorVariedadConImportePorMes(@Param("anio") int anio, @Param("mes") int mes);
 
 	
 	@Query(value = """
@@ -87,6 +61,7 @@ public interface MermaRepository  extends JpaRepository<MermaEmpanada, Long> {
 	        WHERE DATE(m.fecha_registro) = :fecha
 	    """, nativeQuery = true)
 	    Integer totalMermasPorFecha(@Param("fecha") LocalDate fecha);
+	
 	
 	@Query("SELECT COALESCE(SUM(m.variedad.precioUnitario * m.cantidad), 0) " +
 		       "FROM MermaEmpanada m " +

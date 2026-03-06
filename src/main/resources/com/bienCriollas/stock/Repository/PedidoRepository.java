@@ -27,6 +27,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 	List<Pedido> findByFechaCreacion(LocalDate fechaCreacion);
 	
 	List<Pedido> findByFechaCreacionAndEstado(LocalDate fechaCreacion, TipoEstado estado);
+	
 	Page<Pedido> findByEstado(TipoEstado estado, Pageable pageable);
 	 
 

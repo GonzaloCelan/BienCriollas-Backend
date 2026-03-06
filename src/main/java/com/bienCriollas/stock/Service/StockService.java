@@ -213,7 +213,7 @@ public class StockService implements IStockService {
 
             // 4) Registrar la pérdida en la tabla empanada_perdida
             MermaEmpanada registro =  MermaEmpanada.builder()
-                    .idVariedad(variedad.getId_variedad())
+                    .variedad(variedad)
                     .fechaRegistro(LocalDateTime.now())
                     .cantidad(perdida.cantidad())
                     .build();
