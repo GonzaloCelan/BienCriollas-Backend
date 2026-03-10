@@ -56,7 +56,8 @@ public interface EgresoRepository  extends JpaRepository<Egreso, Long> {
 	    @Query("select e from Egreso e where function('date', e.creadoEn) = :fecha order by e.creadoEn desc")
 	    List<Egreso> buscarPorFecha(@Param("fecha") LocalDate fecha);
 	    
-	    
+	    @Query("SELECT COALESCE(SUM(e.monto), 0) FROM Egreso e WHERE e.creadoEn >= :inicio AND e.creadoEn < :fin")
+	    BigDecimal sumMontoByFecha(@Param("inicio") LocalDateTime inicio, @Param("fin") LocalDateTime fin);
 	 
 	    @Query("SELECT COALESCE(SUM(e.monto), 0) FROM Egreso e WHERE DATE(e.creadoEn) = :fecha")
 	    BigDecimal sumMontoByFecha(@Param("fecha") LocalDate fecha);

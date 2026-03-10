@@ -8,7 +8,7 @@ public record CajaResponseDTO(
         BigDecimal ingresosEfectivo,
         BigDecimal ingresosTransferencias,
         BigDecimal totalEgresos,
-        BigDecimal pedidosYaLiquidacion
+        BigDecimal balanceFinal
         ) {
 
 }

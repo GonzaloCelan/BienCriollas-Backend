@@ -23,5 +23,7 @@ public interface ICajaService {
 	    
 	 List<CajaDiaria> obtenerTodasLasCajas();
 	 
+	 CajaResponseDTO previsualizarCaja(LocalDate fecha);
+	 
 
 }

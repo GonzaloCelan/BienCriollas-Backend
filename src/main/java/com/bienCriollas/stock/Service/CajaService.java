@@ -13,6 +13,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bienCriollas.stock.Dto.CajaResponseDTO;
 import com.bienCriollas.stock.Dto.EgresosDiariosDTO;
 
 import com.bienCriollas.stock.Dto.IngresosDiariosDTO;
@@ -37,10 +38,12 @@ import lombok.RequiredArgsConstructor;
 public class CajaService implements ICajaService {
 
 
-	private final PedidoService pedidoService;
+	
     private final CajaDiariaRepository cajaDiariaRepository;
+    
     private final EgresoService egresoService;
     private final PerdidasService perdidasService;
+    private final PedidoService pedidoService;
     
     
   
@@ -134,6 +137,29 @@ public class CajaService implements ICajaService {
 	public List<CajaDiaria> obtenerTodasLasCajas() {
 		
 		return cajaDiariaRepository.findAll();
+	}
+
+
+
+
+
+
+	@Override
+	public CajaResponseDTO previsualizarCaja(LocalDate fecha) {
+		 	IngresosDiariosDTO ingresos = pedidoService.calcularIngresosDiarios(fecha, TipoEstado.ENTREGADO);
+		 	EgresosDiariosDTO egresos = egresoService.obtenerEgresosDiarios(fecha);
+		    BigDecimal mermas = perdidasService.calcularMermasPorFecha(fecha);
+
+		    BigDecimal totalEgresos = egresos.totalEgresos().add(mermas);
+		    BigDecimal balance = ingresos.ingresosTotal().subtract(totalEgresos);
+
+		    return new CajaResponseDTO(
+		    		ingresos.ingresosTotal(),
+		            ingresos.ingresosEfectivo(),
+		            ingresos.ingresosTransferencia(),
+		            totalEgresos,
+		            balance
+		    );
 	}
 
     
