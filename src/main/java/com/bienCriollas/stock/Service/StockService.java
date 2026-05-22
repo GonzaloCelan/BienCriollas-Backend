@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bienCriollas.stock.Dto.AjusteStockDTO;
 import com.bienCriollas.stock.Dto.PerdidaEmpanadaDTO;
 import com.bienCriollas.stock.Dto.StockDTO;
 import com.bienCriollas.stock.Dto.StockResponseDTO;
@@ -221,6 +222,39 @@ public class StockService implements IStockService {
             mermaRepository.save(registro);
         }
     }
+
+
+	@Override
+	@Transactional
+	public void ajustarStockDisponible(List<AjusteStockDTO> ajustes) {
+
+	    if (ajustes == null || ajustes.isEmpty()) {
+	        throw new IllegalArgumentException("La lista de ajustes no puede estar vacía");
+	    }
+
+	    for (AjusteStockDTO ajuste : ajustes) {
+
+	        if (ajuste.idVariedad() == null) {
+	            throw new IllegalArgumentException("El id de la variedad no puede ser nulo");
+	        }
+
+	        if (ajuste.stockDisponible() == null || ajuste.stockDisponible() < 0) {
+	            throw new IllegalArgumentException(
+	                "El stock disponible no puede ser nulo ni menor a 0"
+	            );
+	        }
+
+	        Stock stock = stockRepository
+	                .findByIdVariedadAndActivo(ajuste.idVariedad(), 1)
+	                .orElseThrow(() -> new RuntimeException(
+	                    "No existe stock activo para la variedad ID: " + ajuste.idVariedad()
+	                ));
+
+	        stock.setStockDisponible(ajuste.stockDisponible());
+
+	        stockRepository.save(stock);
+	    }
+	}
 }
 
 	

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.bienCriollas.stock.Dto.AjusteStockDTO;
 import com.bienCriollas.stock.Dto.PerdidaEmpanadaDTO;
 import com.bienCriollas.stock.Dto.StockDTO;
 import com.bienCriollas.stock.Dto.StockResponseDTO;
@@ -84,4 +85,13 @@ public class StockController {
         stockService.registrarPerdidas(perdidas);
         return ResponseEntity.ok().build();
     }
+	
+	// Endpoint para resetar stock disponible
+	@PostMapping("/ajustar")
+	public ResponseEntity<Void> ajustarStockDisponible(
+	        @RequestBody List<AjusteStockDTO> ajustes
+	) {
+	    stockService.ajustarStockDisponible(ajustes);
+	    return ResponseEntity.ok().build();
+	}
 }
