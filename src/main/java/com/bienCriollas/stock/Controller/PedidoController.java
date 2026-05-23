@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bienCriollas.stock.Dto.PedidoDetalleResponseDTO;
+import com.bienCriollas.stock.Dto.PedidoEventoDTO;
 import com.bienCriollas.stock.Dto.PedidoRequestDTO;
 import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Interface.IPedidoService;
@@ -28,6 +29,9 @@ import com.bienCriollas.stock.enums.TipoPago;
 
 import lombok.RequiredArgsConstructor;
 
+
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 @RestController
 @RequestMapping("/pedido")
 public class PedidoController {
@@ -36,20 +40,34 @@ public class PedidoController {
 	@Autowired
 	private IPedidoService pedidoService;
 	
+	@Autowired
+	private SimpMessagingTemplate messagingTemplate;
 	
-	@PostMapping("/crear")
+	
+	@PostMapping("pedido/crear")
 	public ResponseEntity<PedidoResponseDTO> crearPedido(@RequestBody PedidoRequestDTO pedido) {
-		PedidoResponseDTO response = pedidoService.crearPedido(pedido);
+	    PedidoResponseDTO response = pedidoService.crearPedido(pedido);
+
+	    messagingTemplate.convertAndSend(
+	            "/topic/pedidos",
+	            new PedidoEventoDTO(
+	                    "CREADO",
+	                    response.idPedido(),
+	                    response.estadoPedido().name()
+	            )
+	    );
+
 	    return ResponseEntity.ok(response);
 	}
 	
 	
-	@PutMapping("/actualizar-estado/{id}/{nuevoEstado}")
+	@PutMapping("pedido/actualizar-estado/{id}/{nuevoEstado}")
 	public ResponseEntity<Boolean> actualizarEstadoPedido(
 	        @PathVariable Long id,
 	        @PathVariable String nuevoEstado) {
 
 	    TipoEstado estadoEnum;
+
 	    try {
 	        estadoEnum = TipoEstado.valueOf(nuevoEstado.toUpperCase());
 	    } catch (IllegalArgumentException e) {
@@ -57,8 +75,28 @@ public class PedidoController {
 	    }
 
 	    Boolean response = pedidoService.actualizarEstadoPedido(id, estadoEnum);
+
+	    if (Boolean.TRUE.equals(response)) {
+	        String tipoEvento = estadoEnum.name().equals("CANCELADO")
+	                ? "CANCELADO"
+	                : "ACTUALIZADO";
+
+	        messagingTemplate.convertAndSend(
+	                "/topic/pedidos",
+	                new PedidoEventoDTO(
+	                        tipoEvento,
+	                        id,
+	                        estadoEnum.name()
+	                )
+	        );
+	    }
+
 	    return ResponseEntity.ok(response);
 	}
+	
+	
+	
+	
 	
 	@PutMapping("/actualizar-pago/{id}/{nuevoPago}")
 	public ResponseEntity<Boolean> actualizarTipoPago(
