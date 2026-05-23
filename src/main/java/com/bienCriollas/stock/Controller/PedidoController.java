@@ -44,7 +44,7 @@ public class PedidoController {
 	private SimpMessagingTemplate messagingTemplate;
 	
 	
-	@PostMapping("pedido/crear")
+	@PostMapping("/crear")
 	public ResponseEntity<PedidoResponseDTO> crearPedido(@RequestBody PedidoRequestDTO pedido) {
 	    PedidoResponseDTO response = pedidoService.crearPedido(pedido);
 
@@ -61,7 +61,7 @@ public class PedidoController {
 	}
 	
 	
-	@PutMapping("pedido/actualizar-estado/{id}/{nuevoEstado}")
+	@PutMapping("/actualizar-estado/{id}/{nuevoEstado}")
 	public ResponseEntity<Boolean> actualizarEstadoPedido(
 	        @PathVariable Long id,
 	        @PathVariable String nuevoEstado) {
