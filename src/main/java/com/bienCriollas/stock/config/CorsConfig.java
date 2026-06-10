@@ -13,19 +13,27 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // 🔹 ORÍGENES PERMITIDOS
+        // ORÍGENES PERMITIDOS
         config.addAllowedOriginPattern("http://localhost:*");
         config.addAllowedOriginPattern("http://127.0.0.1:*");
+
+        // Front viejo
         config.addAllowedOriginPattern("https://biencriollas-front-production.up.railway.app");
 
-        // 🔹 MÉTODOS
+        // Front nuevo React
+        config.addAllowedOriginPattern("https://biencriollas-frontend-react-production.up.railway.app");
+
+        // MÉTODOS
         config.addAllowedMethod("*");
 
-        // 🔹 HEADERS
+        // HEADERS
         config.addAllowedHeader("*");
 
-        // 🔹 PERMITIR COOKIES (opcional)
+        // COOKIES / CREDENCIALES
         config.setAllowCredentials(true);
+
+        // CACHE PREFLIGHT
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
