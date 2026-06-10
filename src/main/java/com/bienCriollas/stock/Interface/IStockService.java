@@ -2,10 +2,10 @@ package com.bienCriollas.stock.Interface;
 
 import java.util.List;
 
-import com.bienCriollas.stock.Dto.AjusteStockDTO;
-import com.bienCriollas.stock.Dto.PerdidaEmpanadaDTO;
-import com.bienCriollas.stock.Dto.StockDTO;
-import com.bienCriollas.stock.Dto.StockResponseDTO;
+import com.bienCriollas.stock.Dto.mermas.PerdidaEmpanadaDTO;
+import com.bienCriollas.stock.Dto.stocks.AjusteStockDTO;
+import com.bienCriollas.stock.Dto.stocks.StockDTO;
+import com.bienCriollas.stock.Dto.stocks.StockResponseDTO;
 
 public interface IStockService {
 

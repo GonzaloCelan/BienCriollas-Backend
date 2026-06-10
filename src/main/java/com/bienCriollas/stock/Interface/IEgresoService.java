@@ -1,18 +1,16 @@
 package com.bienCriollas.stock.Interface;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import com.bienCriollas.stock.Dto.EgresoResponseDTO;
-import com.bienCriollas.stock.Dto.EgresoTipoDTO;
-import com.bienCriollas.stock.Dto.EgresoTotalPorTipoDTO;
-import com.bienCriollas.stock.Dto.EgresosDiariosDTO;
-import com.bienCriollas.stock.Dto.EgresosPorcentajeDTO;
-import com.bienCriollas.stock.Model.Egreso;
+import com.bienCriollas.stock.Dto.egreso.EgresoResponseDTO;
+import com.bienCriollas.stock.Dto.egreso.EgresoTipoDTO;
+import com.bienCriollas.stock.Dto.egreso.EgresoTotalPorTipoDTO;
+import com.bienCriollas.stock.Dto.egreso.EgresosPorcentajeDTO;
 import com.bienCriollas.stock.enums.TipoEgreso;
+import com.bienCriollas.stock.model.Egreso;
 
 public interface IEgresoService {
 

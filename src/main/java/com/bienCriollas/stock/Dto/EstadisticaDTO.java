@@ -3,6 +3,8 @@ package com.bienCriollas.stock.Dto;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.bienCriollas.stock.Dto.egreso.EmpanadaMermaDTO;
+
 public record EstadisticaDTO(
 		
 		Integer totalEmpanadasVendidas,
