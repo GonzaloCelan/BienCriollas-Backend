@@ -1,13 +1,13 @@
 package com.bienCriollas.stock.controller;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,11 +24,6 @@ import com.bienCriollas.stock.Dto.PedidoResponseDTO;
 import com.bienCriollas.stock.Interface.IPedidoService;
 import com.bienCriollas.stock.enums.TipoEstado;
 import com.bienCriollas.stock.enums.TipoPago;
-
-import lombok.RequiredArgsConstructor;
-
-
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @RestController
 @RequestMapping("api/v2/pedido")
