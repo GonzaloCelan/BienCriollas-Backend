@@ -48,12 +48,32 @@ desconectadas entre sí (pedidos, pagos, stock, caja).
 
 ## 🧱 Arquitectura
 
-El proyecto sigue una arquitectura en capas clara:
+El proyecto está organizado por módulos de negocio. Cada módulo reúne sus
+controllers, DTOs, entidades, interfaces, repositorios y servicios, evitando
+que las clases de una misma funcionalidad queden dispersas por todo el proyecto.
+
+```text
+com/bienCriollas/stock/
+├── config/
+├── egreso/
+├── estadistica/
+├── ingreso/
+├── merma/
+├── pedido/
+├── stock/
+├── variedad/
+└── StockApplication.java
+```
+
+Dentro de cada módulo se mantienen las capas que realmente utiliza:
 
 - **Controller**: expone los endpoints REST
 - **Service**: contiene la lógica de negocio
 - **Repository**: acceso a datos mediante Spring Data JPA
 - **DTOs**: separación entre entidades y datos expuestos
+- **Entity**: representa el modelo persistido del módulo
+- **Interfaces**: define los contratos de los servicios y proyecciones
+- **Enums**: contiene valores propios del dominio del módulo
 
 Principios aplicados:
 
@@ -135,4 +155,3 @@ Por razones de seguridad y consistencia de datos:
 
 El objetivo de este repositorio es mostrar el diseño, la arquitectura
 y la lógica de negocio del backend.
-
