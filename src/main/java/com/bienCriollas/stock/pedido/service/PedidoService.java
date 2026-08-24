@@ -133,6 +133,7 @@ public class PedidoService implements IPedidoService {
 	    		.tipoVenta(tipoVenta)
 	    		.tipoPago(tipoPago)
 	    		.numeroPedidoPedidosYa(pedidoDTO.numeroPedidoPedidosYa() != null ? pedidoDTO.numeroPedidoPedidosYa() : null)
+	    		.horarioEntrega(pedidoDTO.horaEntrega())
 	    		.fechaCreacion(fechaActual)
 	    		.montoEfectivo(montoEfectivo)
 	    		.montoTransferencia(montoTransferencia)
