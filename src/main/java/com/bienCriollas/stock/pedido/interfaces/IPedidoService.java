@@ -15,6 +15,8 @@ import com.bienCriollas.stock.pedido.enums.TipoPago;
 public interface IPedidoService {
 	
 	  public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoDTO);
+
+	  public PedidoResponseDTO actualizarPedido(Long idPedido, PedidoRequestDTO pedidoDTO);
 	  
 	  public boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado);
 	  
