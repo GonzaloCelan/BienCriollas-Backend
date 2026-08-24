@@ -50,7 +50,26 @@ public class PedidoController {
 	            )
 	    );
 
-	    return ResponseEntity.ok(response);
+		return ResponseEntity.ok(response);
+	}
+
+	@PutMapping("/actualizar/{id}")
+	public ResponseEntity<PedidoResponseDTO> actualizarPedido(
+			@PathVariable Long id,
+			@RequestBody PedidoRequestDTO pedido) {
+
+		PedidoResponseDTO response = pedidoService.actualizarPedido(id, pedido);
+
+		messagingTemplate.convertAndSend(
+				"/topic/pedidos",
+				new PedidoEventoDTO(
+						"ACTUALIZADO",
+						response.idPedido(),
+						response.estadoPedido().name()
+				)
+		);
+
+		return ResponseEntity.ok(response);
 	}
 	
 	

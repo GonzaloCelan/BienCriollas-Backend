@@ -185,6 +185,59 @@ public class PedidoService implements IPedidoService {
 	    
 	}
 
+	@Override
+	@Transactional
+	public PedidoResponseDTO actualizarPedido(Long idPedido, PedidoRequestDTO pedidoDTO) {
+		if (pedidoDTO == null) {
+			throw new IllegalArgumentException("El pedido no puede ser null");
+		}
+
+		Pedido pedido = pedidoRepository.findById(idPedido)
+				.orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+
+		if (pedido.getEstado() != TipoEstado.PENDIENTE && pedido.getEstado() != TipoEstado.PREPARADO) {
+			throw new IllegalStateException(
+					"Solo se puede editar un pedido que esté PENDIENTE o PREPARADO");
+		}
+
+		validarPedidoParaActualizar(pedidoDTO);
+
+		TipoVenta tipoVenta = parsearEnum(TipoVenta.class, pedidoDTO.tipoVenta(), "tipo de venta");
+		TipoPago tipoPago = parsearEnum(TipoPago.class, pedidoDTO.tipoPago(), "tipo de pago");
+		MontosPago montos = calcularMontosPago(pedidoDTO, tipoPago);
+
+		// Se devuelve el stock anterior antes de reemplazar los detalles. Si alguna
+		// operación posterior falla, @Transactional revierte toda la actualización.
+		devolverStockPorCancelacion(pedido);
+		pedido.getDetalles().clear();
+
+		pedido.setCliente(pedidoDTO.cliente().trim());
+		pedido.setTipoVenta(tipoVenta);
+		pedido.setTipoPago(tipoPago);
+		pedido.setNumeroPedidoPedidosYa(pedidoDTO.numeroPedidoPedidosYa());
+		pedido.setHorarioEntrega(pedidoDTO.horaEntrega());
+		pedido.setMontoEfectivo(montos.efectivo());
+		pedido.setMontoTransferencia(montos.transferencia());
+		pedido.setTotalPedido(pedidoDTO.totalPedido());
+
+		for (PedidoDetalleRequestDTO detalleDTO : pedidoDTO.detalles()) {
+			VariedadEmpanada variedad = variedadEmpanadaRepository.findById(detalleDTO.idVariedad())
+					.orElseThrow(() -> new RuntimeException(
+							"No se encontró la variedad con id " + detalleDTO.idVariedad()));
+
+			stockService.descontarStockVariedad(variedad.getId_variedad(), detalleDTO.cantidad());
+
+			pedido.getDetalles().add(DetallePedido.builder()
+					.pedido(pedido)
+					.variedad(variedad)
+					.cantidad(detalleDTO.cantidad())
+					.build());
+		}
+
+		Pedido pedidoActualizado = pedidoRepository.save(pedido);
+		return toDto(pedidoActualizado);
+	}
+
 	
 	
 	
@@ -457,6 +510,70 @@ public class PedidoService implements IPedidoService {
 	            stockRepository.save(ultimoStock);
 	        }
 	    }
+	}
+
+	private void validarPedidoParaActualizar(PedidoRequestDTO pedidoDTO) {
+		if (pedidoDTO.cliente() == null || pedidoDTO.cliente().isBlank()) {
+			throw new IllegalArgumentException("El nombre del cliente es obligatorio");
+		}
+		if (pedidoDTO.totalPedido() == null || pedidoDTO.totalPedido().compareTo(BigDecimal.ZERO) < 0) {
+			throw new IllegalArgumentException("El total del pedido no puede ser null ni negativo");
+		}
+		if (pedidoDTO.detalles() == null || pedidoDTO.detalles().isEmpty()) {
+			throw new IllegalArgumentException("El pedido debe tener al menos un detalle");
+		}
+
+		for (PedidoDetalleRequestDTO detalle : pedidoDTO.detalles()) {
+			if (detalle == null || detalle.idVariedad() == null) {
+				throw new IllegalArgumentException("Cada detalle debe indicar una variedad");
+			}
+			if (detalle.cantidad() == null || detalle.cantidad() <= 0) {
+				throw new IllegalArgumentException("La cantidad de cada detalle debe ser mayor a cero");
+			}
+		}
+	}
+
+	private MontosPago calcularMontosPago(PedidoRequestDTO pedidoDTO, TipoPago tipoPago) {
+		return switch (tipoPago) {
+			case EFECTIVO -> new MontosPago(pedidoDTO.totalPedido(), BigDecimal.ZERO);
+			case TRANSFERENCIA -> new MontosPago(BigDecimal.ZERO, pedidoDTO.totalPedido());
+			case COMBINADO -> {
+				BigDecimal efectivo = pedidoDTO.montoEfectivo() == null
+						? BigDecimal.ZERO
+						: pedidoDTO.montoEfectivo();
+				BigDecimal transferencia = pedidoDTO.montoTransferencia() == null
+						? BigDecimal.ZERO
+						: pedidoDTO.montoTransferencia();
+
+				if (efectivo.compareTo(BigDecimal.ZERO) < 0
+						|| transferencia.compareTo(BigDecimal.ZERO) < 0) {
+					throw new IllegalArgumentException("Los montos de pago no pueden ser negativos");
+				}
+
+				BigDecimal suma = efectivo.add(transferencia);
+				if (suma.compareTo(pedidoDTO.totalPedido()) != 0) {
+					throw new IllegalArgumentException(
+							"La suma de efectivo + transferencia debe ser igual al total del pedido");
+				}
+
+				yield new MontosPago(efectivo, transferencia);
+			}
+		};
+	}
+
+	private <E extends Enum<E>> E parsearEnum(Class<E> tipo, String valor, String nombreCampo) {
+		if (valor == null || valor.isBlank()) {
+			throw new IllegalArgumentException("El " + nombreCampo + " es obligatorio");
+		}
+
+		try {
+			return Enum.valueOf(tipo, valor.trim().toUpperCase());
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("El " + nombreCampo + " no es válido: " + valor);
+		}
+	}
+
+	private record MontosPago(BigDecimal efectivo, BigDecimal transferencia) {
 	}
     
 
