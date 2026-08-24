@@ -59,6 +59,38 @@ class PedidoServiceTest {
     private PedidoService pedidoService;
 
     @Test
+    void crearPedidoGuardaYRetornaElHorarioDeEntrega() {
+        LocalTime horarioEntrega = LocalTime.of(21, 30);
+        VariedadEmpanada variedad = VariedadEmpanada.builder()
+                .id_variedad(2L)
+                .nombre("Pollo")
+                .build();
+        PedidoRequestDTO request = new PedidoRequestDTO(
+                "Cliente",
+                "PARTICULAR",
+                "EFECTIVO",
+                null,
+                horarioEntrega,
+                null,
+                null,
+                new BigDecimal("9000"),
+                List.of(new PedidoDetalleRequestDTO(2L, 6)));
+
+        when(variedadEmpanadaRepository.findById(2L)).thenReturn(Optional.of(variedad));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> {
+            Pedido pedido = invocation.getArgument(0);
+            pedido.setIdPedido(10L);
+            return pedido;
+        });
+
+        PedidoResponseDTO response = pedidoService.crearPedido(request);
+
+        assertEquals(horarioEntrega, response.horaEntrega());
+        verify(pedidoRepository).save(any(Pedido.class));
+        verify(stockService).descontarStockVariedad(2L, 6);
+    }
+
+    @Test
     void actualizarPedidoReemplazaDatosDetallesYStock() {
         VariedadEmpanada variedadAnterior = VariedadEmpanada.builder()
                 .id_variedad(1L)
