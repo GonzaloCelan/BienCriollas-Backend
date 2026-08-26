@@ -18,9 +18,13 @@ import com.bienCriollas.stock.stock.dto.StockDTO;
 import com.bienCriollas.stock.stock.dto.StockResponseDTO;
 import com.bienCriollas.stock.stock.interfaces.IStockService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("api/v2/stock")
+@Tag(name = "Stock", description = "Producción, disponibilidad, ajustes y pérdidas de stock.")
 public class StockController {
 	
 	@Autowired
@@ -28,6 +32,7 @@ public class StockController {
 	
 	// Endpoint para actualizar stock en lote
 	@PostMapping("/actualizar")
+    @Operation(summary = "Registrar producción en lote", description = "Crea o actualiza el stock elaborado para varias variedades.")
     public ResponseEntity<?> actualizarStock(@RequestBody List<StockDTO> requestList) {
         try {
             Boolean ok = stockService.actualizarStock(requestList);
@@ -43,6 +48,7 @@ public class StockController {
 	
 	// Endpoint para obtener todos los registros de stock
 	@GetMapping("/obtener-stock-actual")
+	@Operation(summary = "Obtener el stock actual", description = "Lista el stock disponible de todas las variedades activas.")
 	public ResponseEntity<List<StockResponseDTO>> obetenerStockLote() {
 		List<StockResponseDTO> response = stockService.obtenerTodosLosRegistrosDeStock();
 	    return ResponseEntity.ok(response);
@@ -51,7 +57,9 @@ public class StockController {
 	
 	// Endpoint para obtener registros de stock por variedad
 	@GetMapping("/obtener-variedad/{idVariedad}")
-	public ResponseEntity<?> obetenerStockPorVariedad(@PathVariable Long idVariedad) {
+	@Operation(summary = "Obtener stock por variedad", description = "Lista los registros de stock asociados a una variedad.")
+	public ResponseEntity<?> obetenerStockPorVariedad(
+			@PathVariable @Parameter(description = "ID de la variedad", example = "2") Long idVariedad) {
 
 	    List<StockResponseDTO> response = stockService.obtenerRegistrosDeStockPorVariedad(idVariedad);
 
@@ -67,7 +75,10 @@ public class StockController {
 	
 	// Endpoint para descontar stock de una variedad
 	@PostMapping("/descontarStock/{idVariedad}/{cantidad}")
-	public ResponseEntity<String> descontarStock(@PathVariable Long idVariedad, @PathVariable Integer cantidad) {
+	@Operation(summary = "Descontar stock", description = "Descuenta manualmente una cantidad de la variedad indicada.")
+	public ResponseEntity<String> descontarStock(
+			@PathVariable @Parameter(description = "ID de la variedad", example = "2") Long idVariedad,
+			@PathVariable @Parameter(description = "Cantidad a descontar", example = "6") Integer cantidad) {
 	    try {
 	    	
 	        stockService.descontarStockVariedad(idVariedad, cantidad);
@@ -81,6 +92,7 @@ public class StockController {
 	
 	// Endpoint para registar empanadas perdidas
 	@PostMapping("/perdidas")
+    @Operation(summary = "Registrar pérdidas", description = "Registra mermas y descuenta las unidades informadas.")
     public ResponseEntity<Void> registrarPerdidas(@RequestBody List<PerdidaEmpanadaDTO> perdidas) {
         stockService.registrarPerdidas(perdidas);
         return ResponseEntity.ok().build();
@@ -88,6 +100,7 @@ public class StockController {
 	
 	// Endpoint para resetar stock disponible
 	@PostMapping("/ajustar")
+	@Operation(summary = "Ajustar stock disponible", description = "Corrige manualmente la disponibilidad actual por variedad.")
 	public ResponseEntity<Void> ajustarStockDisponible(
 	        @RequestBody List<AjusteStockDTO> ajustes
 	) {

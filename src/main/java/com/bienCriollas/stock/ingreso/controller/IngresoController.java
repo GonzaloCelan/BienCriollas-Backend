@@ -15,16 +15,20 @@ import com.bienCriollas.stock.ingreso.dto.IngresoResumenDTO;
 import com.bienCriollas.stock.ingreso.dto.LiquidacionPedidosYaRequestDTO;
 import com.bienCriollas.stock.ingreso.service.IngresoService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v2/ingresos")
 @RequiredArgsConstructor
+@Tag(name = "Ingresos", description = "Resúmenes de cobros y liquidaciones de canales externos.")
 public class IngresoController {
 
     private final IngresoService ingresoService;
 
     @GetMapping("/resumen")
+    @Operation(summary = "Obtener resumen de ingresos", description = "Consolida los ingresos del período indicado.")
     public ResponseEntity<IngresoResumenDTO> obtenerResumen(
             @RequestParam
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -40,6 +44,7 @@ public class IngresoController {
     }
 
     @PostMapping("/liquidaciones-pedidos-ya")
+    @Operation(summary = "Registrar liquidación de PedidosYa", description = "Registra el importe liquidado por la plataforma para una fecha.")
     public ResponseEntity<Void> registrarLiquidacionPedidosYa(
             @RequestBody LiquidacionPedidosYaRequestDTO request
     ) {

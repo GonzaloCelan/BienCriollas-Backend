@@ -25,8 +25,13 @@ import com.bienCriollas.stock.pedido.interfaces.IPedidoService;
 import com.bienCriollas.stock.pedido.enums.TipoEstado;
 import com.bienCriollas.stock.pedido.enums.TipoPago;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("api/v2/pedido")
+@Tag(name = "Pedidos", description = "Operaciones del ciclo completo de pedidos.")
 public class PedidoController {
 
 	
@@ -38,6 +43,7 @@ public class PedidoController {
 	
 	
 	@PostMapping("/crear")
+	@Operation(summary = "Crear un pedido", description = "Registra el pedido, descuenta el stock y publica un evento WebSocket.")
 	public ResponseEntity<PedidoResponseDTO> crearPedido(@RequestBody PedidoRequestDTO pedido) {
 	    PedidoResponseDTO response = pedidoService.crearPedido(pedido);
 
@@ -54,8 +60,9 @@ public class PedidoController {
 	}
 
 	@PutMapping("/actualizar/{id}")
+	@Operation(summary = "Actualizar un pedido completo", description = "Reemplaza sus datos y detalles, devolviendo el stock anterior y descontando el nuevo.")
 	public ResponseEntity<PedidoResponseDTO> actualizarPedido(
-			@PathVariable Long id,
+			@PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
 			@RequestBody PedidoRequestDTO pedido) {
 
 		PedidoResponseDTO response = pedidoService.actualizarPedido(id, pedido);
@@ -74,9 +81,10 @@ public class PedidoController {
 	
 	
 	@PutMapping("/actualizar-estado/{id}/{nuevoEstado}")
+	@Operation(summary = "Cambiar el estado de un pedido", description = "Actualiza el estado y notifica el cambio en /topic/pedidos.")
 	public ResponseEntity<Boolean> actualizarEstadoPedido(
-	        @PathVariable Long id,
-	        @PathVariable String nuevoEstado) {
+	        @PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
+	        @PathVariable @Parameter(description = "PENDIENTE, PREPARADO, ENTREGADO o CANCELADO", example = "PREPARADO") String nuevoEstado) {
 
 	    TipoEstado estadoEnum;
 
@@ -111,9 +119,10 @@ public class PedidoController {
 	
 	
 	@PutMapping("/actualizar-pago/{id}/{nuevoPago}")
+	@Operation(summary = "Cambiar el medio de pago", description = "Actualiza el tipo de pago asociado al pedido.")
 	public ResponseEntity<Boolean> actualizarTipoPago(
-	        @PathVariable Long id,
-	        @PathVariable String nuevoPago) {
+	        @PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
+	        @PathVariable @Parameter(description = "EFECTIVO, TRANSFERENCIA o COMBINADO", example = "EFECTIVO") String nuevoPago) {
 
 	    TipoPago pagoEnum;
 	    try {
@@ -127,8 +136,9 @@ public class PedidoController {
 	}
 	
 	@GetMapping("/pedido-estado/{estado}")
+	@Operation(summary = "Listar pedidos por estado", description = "Devuelve los pedidos del día paginados y ordenados para la operación.")
 	public ResponseEntity<?> obtenerPedidosPorEstado(
-	        @PathVariable String estado,
+	        @PathVariable @Parameter(description = "Estado del pedido", example = "PENDIENTE") String estado,
 	        @RequestParam(defaultValue = "0") int page,
 	        @RequestParam(defaultValue = "10") int size
 	) {
@@ -145,6 +155,7 @@ public class PedidoController {
 	
 	
 	@GetMapping("/por-fecha/{fecha}")
+	@Operation(summary = "Listar pedidos por fecha", description = "Busca todos los pedidos de una fecha determinada.")
 	public ResponseEntity<?> obtenerPedidosPorFecha( @PathVariable
 	        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
 	        LocalDate fecha) {
@@ -154,6 +165,7 @@ public class PedidoController {
 	
 	
 	@GetMapping("/detalle/{id}")
+	@Operation(summary = "Obtener el detalle de un pedido", description = "Devuelve variedades, cantidades y subtotales del pedido.")
 	public ResponseEntity<List<PedidoDetalleResponseDTO>> obtenerDetallePedido(@PathVariable Long id) {
 		List<PedidoDetalleResponseDTO> response = pedidoService.obtenerDetallesPedido(id);
 	    
@@ -162,6 +174,7 @@ public class PedidoController {
 	
 	
 	@GetMapping("/paginado")
+	@Operation(summary = "Listar pedidos paginados", description = "Consulta pedidos por estado utilizando paginación explícita.")
 	public ResponseEntity<Page<PedidoResponseDTO>> obtenerPedidosPaginados(
 	        @RequestParam TipoEstado estado,
 	        @RequestParam(defaultValue = "0") int page,

@@ -1,157 +1,495 @@
-# Sistema de Gestión Gastronómica
+# Bien Criollas Backend
 
-Backend desarrollado en **Java + Spring Boot** para la gestión integral de un emprendimiento gastronómico.
-El sistema centraliza pedidos, control de stock, caja diaria, egresos y estadísticas de negocio, modelando
-situaciones reales de operación diaria.
+Backend del sistema de gestión de **Bien Criollas**, desarrollado con Java y Spring Boot para centralizar pedidos, catálogo, stock, ingresos, egresos, mermas y estadísticas de la operación diaria.
 
----
+La API está organizada por módulos de negocio, ofrece documentación interactiva con Swagger/OpenAPI y publica eventos WebSocket para mantener sincronizados los pedidos entre computadoras, celulares y tablets.
 
-## 🎯 Problema que resuelve
+## Contenido
 
-En muchos emprendimientos gastronómicos la gestión diaria se realiza de forma manual o con herramientas
-desconectadas entre sí (pedidos, pagos, stock, caja).
+- [Funcionalidades](#funcionalidades)
+- [Arquitectura](#arquitectura)
+- [Tecnologías](#tecnologías)
+- [Requisitos](#requisitos)
+- [Configuración local](#configuración-local)
+- [Variables de entorno](#variables-de-entorno)
+- [Swagger y OpenAPI](#swagger-y-openapi)
+- [Resumen de endpoints](#resumen-de-endpoints)
+- [Reglas principales de pedidos](#reglas-principales-de-pedidos)
+- [Ejemplos de uso](#ejemplos-de-uso)
+- [WebSocket en tiempo real](#websocket-en-tiempo-real)
+- [Pruebas](#pruebas)
+- [Despliegue](#despliegue)
+- [Seguridad](#seguridad)
 
-**Bien Criollas** surge para resolver este problema mediante un sistema que:
+## Funcionalidades
 
-- Centraliza los pedidos en un único flujo
-- Controla el stock de productos en tiempo real
-- Registra ingresos y egresos en la caja diaria
-- Maneja distintos tipos de pago
-- Genera métricas claras para la toma de decisiones
+### Pedidos
 
----
+- Creación de pedidos particulares y de PedidosYa.
+- Edición completa de pedidos pendientes o preparados.
+- Estados `PENDIENTE`, `PREPARADO`, `ENTREGADO` y `CANCELADO`.
+- Pagos en efectivo, transferencia o modalidad combinada.
+- Registro del horario de entrega para pedidos particulares.
+- Consulta por estado, fecha y paginación.
+- Consulta del detalle de variedades y cantidades.
+- Notificaciones WebSocket al crear, editar, cancelar o cambiar el estado.
 
-## ⚙️ Funcionalidades principales
+### Stock y catálogo
 
-- Gestión de pedidos (Particular / PedidosYa)
-- Estados de pedido (Pendiente, Preparado, Cancelado, etc.)
-- Manejo de pagos:
-  - Efectivo
-  - Transferencia
-  - Pago combinado
-- Control de stock por variedad de producto
-- Descuento automático de stock al crear pedidos
-- Devolución de stock al cancelar pedidos
-- Caja diaria:
-  - Apertura automática por fecha
-  - Registro de ingresos y egresos
-  - Cálculo de balance final
-- Gestión de egresos y mermas
-- Estadísticas y resúmenes:
-  - Totales diarios y semanales
-  - Resúmenes acumulados
-  - Métricas por tipo de ingreso
-- Paginación y filtros por estado y fecha
-- Uso de DTOs para separar dominio interno de contratos externos
+- Registro de producción por variedad y fecha de elaboración.
+- Descuento automático de stock al crear o modificar pedidos.
+- Reposición del stock anterior al editar o cancelar un pedido.
+- Ajustes manuales de disponibilidad.
+- Registro de pérdidas y mermas.
+- Consulta del stock general o por variedad.
+- Administración de precios por unidad, media docena y docena.
 
----
+### Gestión financiera
 
-## 🧱 Arquitectura
+- Registro y categorización de egresos.
+- Historial paginado por mes y tipo.
+- Comparación del mes actual contra el anterior.
+- Totales de egresos por categoría.
+- Resumen de ingresos por período.
+- Registro de liquidaciones de PedidosYa.
+- Estadísticas consolidadas de la operación.
 
-El proyecto está organizado por módulos de negocio. Cada módulo reúne sus
-controllers, DTOs, entidades, interfaces, repositorios y servicios, evitando
-que las clases de una misma funcionalidad queden dispersas por todo el proyecto.
+## Arquitectura
+
+El proyecto utiliza una organización **package by feature**: cada módulo reúne sus controllers, DTOs, entidades, interfaces, repositorios, servicios y enums. De esta manera, las clases de una misma funcionalidad permanecen juntas y el sistema puede crecer sin volver a una estructura global difícil de mantener.
 
 ```text
-com/bienCriollas/stock/
+src/main/java/com/bienCriollas/stock/
 ├── config/
+│   ├── CorsConfig.java
+│   ├── OpenApiConfig.java
+│   ├── SecurityConfig.java
+│   └── WebSocketConfig.java
 ├── egreso/
+│   ├── controller/
+│   ├── dto/
+│   ├── entity/
+│   ├── enums/
+│   ├── interfaces/
+│   ├── repository/
+│   └── service/
 ├── estadistica/
 ├── ingreso/
 ├── merma/
 ├── pedido/
+│   ├── controller/
+│   ├── dto/
+│   ├── entity/
+│   ├── enums/
+│   ├── interfaces/
+│   ├── repository/
+│   └── service/
 ├── stock/
 ├── variedad/
 └── StockApplication.java
 ```
 
-Dentro de cada módulo se mantienen las capas que realmente utiliza:
+### Responsabilidad de cada capa
 
-- **Controller**: expone los endpoints REST
-- **Service**: contiene la lógica de negocio
-- **Repository**: acceso a datos mediante Spring Data JPA
-- **DTOs**: separación entre entidades y datos expuestos
-- **Entity**: representa el modelo persistido del módulo
-- **Interfaces**: define los contratos de los servicios y proyecciones
-- **Enums**: contiene valores propios del dominio del módulo
+| Capa | Responsabilidad |
+|---|---|
+| `controller` | Expone endpoints HTTP y adapta la entrada y salida de la API. |
+| `service` | Aplica reglas de negocio y coordina operaciones transaccionales. |
+| `repository` | Accede a MySQL mediante Spring Data JPA. |
+| `entity` | Representa el modelo persistido. |
+| `dto` | Define los contratos de entrada y respuesta sin acoplar el frontend a las entidades. |
+| `interfaces` | Declara contratos de servicios y proyecciones. |
+| `enums` | Centraliza valores válidos del dominio. |
+| `config` | Configura CORS, seguridad, Swagger/OpenAPI y WebSocket. |
 
-Principios aplicados:
+## Tecnologías
 
-- Inyección de dependencias por constructor
-- Uso de `@Transactional` para consistencia de datos
-- Manejo explícito de reglas de negocio
-- Evita exponer entidades directamente
+| Tecnología | Uso |
+|---|---|
+| Java 17 | Lenguaje y versión configurada para compilación. |
+| Spring Boot 4.0.0 | Base de la aplicación. |
+| Spring Web MVC | API REST. |
+| Spring Data JPA | Persistencia y repositorios. |
+| Hibernate | Implementación ORM. |
+| MySQL | Base de datos productiva y local. |
+| Spring Security | Cadena de seguridad HTTP. |
+| Spring WebSocket + STOMP | Actualizaciones de pedidos en tiempo real. |
+| springdoc-openapi 3.0.3 | Generación de OpenAPI y Swagger UI para Spring Boot 4. |
+| Jakarta Validation | Validación declarativa de requests. |
+| Lombok | Reducción de código repetitivo. |
+| Maven Wrapper | Compilación, pruebas y ejecución reproducibles. |
+| JUnit 5 + Mockito + H2 | Pruebas automatizadas. |
 
----
+## Requisitos
 
-## 🛠️ Stack tecnológico
+- Java Development Kit 17 o superior.
+- MySQL 8 o un servicio MySQL compatible.
+- Git, únicamente si se desea clonar el repositorio.
+- No es necesario instalar Maven globalmente: el proyecto incluye Maven Wrapper.
 
-- Java 17
-- Spring Boot
-- Spring Data JPA
-- Hibernate
-- MySQL
-- Lombok
-- Maven
+## Configuración local
 
----
+### 1. Clonar el repositorio
 
-## 🗃️ Base de datos
+```bash
+git clone https://github.com/GonzaloCelan/BienCriollas-Backend.git
+cd BienCriollas-Backend
+```
 
-- Base de datos relacional (MySQL)
-- Modelado orientado a negocio real
-- Restricciones de integridad
-- Manejo de concurrencia en operaciones críticas (caja diaria)
+### 2. Crear la base de datos
 
----
+```sql
+CREATE DATABASE biencriollas_local
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
 
-## 🎨 Frontend
+La propiedad `spring.jpa.hibernate.ddl-auto` está configurada como `none`. Por lo tanto, Hibernate no crea ni modifica las tablas automáticamente y el esquema debe existir antes de iniciar la aplicación.
 
-El frontend fue desarrollado como una capa de presentación básica para
-consumir la API, utilizando JavaScript y herramientas de asistencia
-basadas en inteligencia artificial.
+### 3. Configurar las credenciales
 
-El objetivo del proyecto se centra en el backend y en la lógica de negocio.
+PowerShell:
 
+```powershell
+$env:DB_URL="jdbc:mysql://localhost:3306/biencriollas_local?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Argentina/Buenos_Aires&characterEncoding=utf8"
+$env:DB_USER="root"
+$env:DB_PASSWORD="tu_password"
+```
 
-## 🧪 Estado del proyecto
+Bash:
 
-Proyecto en evolución continua.
+```bash
+export DB_URL='jdbc:mysql://localhost:3306/biencriollas_local?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Argentina/Buenos_Aires&characterEncoding=utf8'
+export DB_USER='root'
+export DB_PASSWORD='tu_password'
+```
 
-Actualmente se encuentra en una etapa funcional sólida, con foco en:
-- Robustez de la lógica de negocio
-- Escalabilidad del diseño
-- Preparación para una posible conversión a modelo SaaS
+### 4. Ejecutar la aplicación
 
----
+Windows:
 
-## 🚀 Objetivo del proyecto
+```powershell
+.\mvnw.cmd spring-boot:run
+```
 
-Este proyecto fue desarrollado con fines:
+Linux o macOS:
 
-- Educativos
-- Profesionales
-- Portfolio backend
+```bash
+./mvnw spring-boot:run
+```
 
-Apuntando a demostrar:
-- Conocimiento real de Spring Boot
-- Diseño orientado a dominio
-- Manejo de lógica de negocio compleja
-- Buenas prácticas en aplicaciones backend
+Por defecto, el backend queda disponible en `http://localhost:8080`.
 
----
+## Variables de entorno
 
----
+| Variable | Obligatoria | Valor local predeterminado | Descripción |
+|---|---:|---|---|
+| `PORT` | No | `8080` | Puerto HTTP utilizado por la aplicación. |
+| `DB_URL` | En producción | URL de `biencriollas_local` | URL JDBC completa de MySQL. |
+| `DB_USER` | En producción | `root` | Usuario de la base de datos. |
+| `DB_PASSWORD` | En producción | Valor local de desarrollo | Contraseña de la base de datos. |
 
-## 🔒 Acceso y entorno
+En producción se deben definir siempre las credenciales mediante variables de entorno y nunca incorporarlas al repositorio.
 
-Este sistema se encuentra actualmente desplegado y en uso real
-en un entorno productivo.
+## Swagger y OpenAPI
 
-Por razones de seguridad y consistencia de datos:
-- No se expone una URL pública de prueba
-- No se proveen credenciales de acceso
-- No se recomienda consumir la API directamente
+Con la aplicación iniciada, la documentación interactiva se encuentra en:
 
-El objetivo de este repositorio es mostrar el diseño, la arquitectura
-y la lógica de negocio del backend.
+```text
+Swagger UI:   http://localhost:8080/swagger-ui.html
+OpenAPI JSON: http://localhost:8080/v3/api-docs
+OpenAPI YAML: http://localhost:8080/v3/api-docs.yaml
+```
+
+Swagger UI permite explorar los endpoints por módulo, consultar parámetros y esquemas, ver ejemplos, ejecutar operaciones con **Try it out** y descargar el contrato OpenAPI.
+
+La configuración general se encuentra en `config/OpenApiConfig.java`. Las rutas y opciones de la interfaz se definen en `application.properties`.
+
+## Resumen de endpoints
+
+Todas las rutas REST utilizan la versión `/api/v2`.
+
+### Pedidos — `/api/v2/pedido`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/crear` | Crea un pedido, descuenta stock y publica un evento WebSocket. |
+| `PUT` | `/actualizar/{id}` | Reemplaza los datos y detalles completos del pedido. |
+| `PUT` | `/actualizar-estado/{id}/{nuevoEstado}` | Cambia el estado y lo comunica en tiempo real. |
+| `PUT` | `/actualizar-pago/{id}/{nuevoPago}` | Cambia el medio de pago. |
+| `GET` | `/pedido-estado/{estado}?page=0&size=10` | Lista pedidos del día por estado. |
+| `GET` | `/por-fecha/{fecha}` | Lista pedidos de una fecha. |
+| `GET` | `/detalle/{id}` | Obtiene las variedades y cantidades del pedido. |
+| `GET` | `/paginado?estado=PENDIENTE&page=0&size=10` | Consulta paginada por estado. |
+
+### Stock — `/api/v2/stock`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/actualizar` | Registra producción para varias variedades. |
+| `GET` | `/obtener-stock-actual` | Obtiene el stock activo de todas las variedades. |
+| `GET` | `/obtener-variedad/{idVariedad}` | Consulta los registros de una variedad. |
+| `POST` | `/descontarStock/{idVariedad}/{cantidad}` | Realiza un descuento manual. |
+| `POST` | `/perdidas` | Registra mermas o pérdidas. |
+| `POST` | `/ajustar` | Corrige el stock disponible. |
+
+### Catálogo — `/api/v2/catalogo`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/` | Lista las variedades y sus precios. |
+| `PUT` | `/{id}` | Actualiza los precios de una variedad. |
+
+### Ingresos — `/api/v2/ingresos`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/resumen?desde=2026-08-01&hasta=2026-08-31` | Obtiene el resumen del período. |
+| `POST` | `/liquidaciones-pedidos-ya` | Registra una liquidación de PedidosYa. |
+
+### Egresos — `/api/v2/egreso`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/registrar` | Registra un gasto. |
+| `GET` | `/acumulado` | Obtiene el total acumulado. |
+| `GET` | `/porcentajes` | Compara el mes actual contra el anterior. |
+| `GET` | `/totales-tipo?anio=2026&mes=8` | Agrupa totales por categoría. |
+| `GET` | `/diario` | Lista los gastos de hoy. |
+| `GET` | `/tipo/{tipo}` | Lista gastos paginados por categoría. |
+| `GET` | `/historial?anio=2026&mes=8&tipo=PRODUCCION` | Consulta el historial mensual; `tipo` es opcional. |
+| `GET` | `/ultimos` | Obtiene los movimientos más recientes. |
+
+### Estadísticas — `/api/v2/estadisticas`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/resumen?desde=2026-08-01&hasta=2026-08-31` | Devuelve métricas consolidadas del período. |
+
+## Valores del dominio
+
+| Campo | Valores permitidos |
+|---|---|
+| Estado del pedido | `PENDIENTE`, `PREPARADO`, `ENTREGADO`, `CANCELADO` |
+| Tipo de venta | `PARTICULAR`, `PEDIDOS_YA` |
+| Tipo de pago | `EFECTIVO`, `TRANSFERENCIA`, `COMBINADO` |
+| Tipo de egreso | `PERSONAL`, `PRODUCCION`, `OTROS` |
+
+Las fechas se envían en formato `yyyy-MM-dd` y los horarios en formato `HH:mm:ss`.
+
+## Reglas principales de pedidos
+
+- Todo pedido nuevo se crea con estado `PENDIENTE`.
+- La creación descuenta del stock las cantidades de cada variedad.
+- Un pedido completo solo puede editarse mientras esté `PENDIENTE` o `PREPARADO`.
+- La edición completa devuelve primero el stock del detalle anterior y luego descuenta el nuevo.
+- La actualización es transaccional: si alguna variedad o cantidad falla, no quedan cambios parciales.
+- Al cancelar un pedido se devuelve su stock disponible.
+- En pagos `EFECTIVO`, el total se asigna a efectivo.
+- En pagos `TRANSFERENCIA`, el total se asigna a transferencia.
+- En pagos `COMBINADO`, efectivo más transferencia deben coincidir exactamente con `totalPedido`.
+- `numeroPedidoPedidosYa` se utiliza para ventas provenientes de `PEDIDOS_YA`.
+- `horaEntrega` utiliza el formato `HH:mm:ss` y se guarda al crear y al editar.
+
+## Ejemplos de uso
+
+### Crear o actualizar un pedido completo
+
+El mismo contrato se utiliza para crear y actualizar:
+
+```json
+{
+  "cliente": "Juan Pérez",
+  "tipoVenta": "PARTICULAR",
+  "tipoPago": "COMBINADO",
+  "numeroPedidoPedidosYa": null,
+  "horaEntrega": "21:30:00",
+  "montoEfectivo": 5000,
+  "montoTransferencia": 4000,
+  "totalPedido": 9000,
+  "detalles": [
+    {
+      "idVariedad": 2,
+      "cantidad": 6
+    },
+    {
+      "idVariedad": 5,
+      "cantidad": 6
+    }
+  ]
+}
+```
+
+Creación:
+
+```http
+POST /api/v2/pedido/crear
+Content-Type: application/json
+```
+
+Actualización:
+
+```http
+PUT /api/v2/pedido/actualizar/123
+Content-Type: application/json
+```
+
+Respuesta:
+
+```json
+{
+  "idPedido": 123,
+  "cliente": "Juan Pérez",
+  "tipoVenta": "PARTICULAR",
+  "tipoPago": "COMBINADO",
+  "numeroPedidoPedidosYa": null,
+  "horaEntrega": "21:30:00",
+  "totalPedido": 9000,
+  "estadoPedido": "PENDIENTE"
+}
+```
+
+### Cambiar el estado
+
+```http
+PUT /api/v2/pedido/actualizar-estado/123/PREPARADO
+```
+
+Respuesta:
+
+```json
+true
+```
+
+### Registrar producción
+
+```json
+[
+  {
+    "id_variedad": 2,
+    "fecha_elaboracion": "2026-08-26",
+    "stock_total": 48
+  }
+]
+```
+
+```http
+POST /api/v2/stock/actualizar
+Content-Type: application/json
+```
+
+## WebSocket en tiempo real
+
+La aplicación utiliza STOMP sobre SockJS.
+
+| Recurso | Valor |
+|---|---|
+| Endpoint de conexión | `/ws` |
+| Canal de pedidos | `/topic/pedidos` |
+| Prefijo de mensajes hacia el servidor | `/app` |
+
+Eventos publicados:
+
+| Tipo | Momento |
+|---|---|
+| `CREADO` | Se registra un pedido nuevo. |
+| `ACTUALIZADO` | Se edita el pedido o cambia su estado. |
+| `CANCELADO` | El pedido cambia al estado cancelado. |
+
+Ejemplo:
+
+```json
+{
+  "tipo": "ACTUALIZADO",
+  "idPedido": 123,
+  "estado": "PREPARADO"
+}
+```
+
+Ejemplo mínimo para un frontend TypeScript:
+
+```ts
+import { Client } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
+
+const client = new Client({
+  webSocketFactory: () => new SockJS(`${BACKEND_URL}/ws`),
+  reconnectDelay: 5000
+});
+
+client.onConnect = () => {
+  client.subscribe("/topic/pedidos", (message) => {
+    const evento = JSON.parse(message.body);
+    console.log("Pedido actualizado", evento);
+  });
+};
+
+client.activate();
+```
+
+El frontend puede actualizar su estado local o invalidar la consulta de pedidos cuando recibe el evento. Así, un cambio realizado desde un celular o tablet aparece en la computadora sin actualizar manualmente la página.
+
+## Pruebas
+
+Ejecutar todas las pruebas:
+
+Windows:
+
+```powershell
+.\mvnw.cmd test
+```
+
+Linux o macOS:
+
+```bash
+./mvnw test
+```
+
+La suite incluye:
+
+- Carga del contexto de Spring Boot.
+- Actualización completa de pedidos y movimientos de stock.
+- Rechazo de edición para pedidos entregados.
+- Persistencia y respuesta del horario de entrega durante la creación.
+
+## Despliegue
+
+El backend está preparado para plataformas que inyectan configuración mediante variables de entorno, como Railway.
+
+Variables mínimas de producción:
+
+```env
+PORT=8080
+DB_URL=jdbc:mysql://HOST:PUERTO/BASE_DE_DATOS
+DB_USER=usuario
+DB_PASSWORD=contraseña
+```
+
+Una vez desplegado:
+
+```text
+API:         https://TU-DOMINIO/api/v2/...
+Swagger UI:  https://TU-DOMINIO/swagger-ui.html
+OpenAPI:     https://TU-DOMINIO/v3/api-docs
+WebSocket:   https://TU-DOMINIO/ws
+```
+
+Los orígenes habilitados para el frontend se administran en `config/CorsConfig.java`.
+
+## Seguridad
+
+El proyecto contiene Spring Security, pero actualmente las solicitudes están configuradas con acceso público mediante `permitAll()`. Swagger también queda accesible para facilitar el desarrollo y las pruebas.
+
+Antes de exponer el sistema a usuarios no confiables se recomienda:
+
+- Incorporar autenticación y autorización.
+- Restringir Swagger en producción si la documentación no debe ser pública.
+- Limitar los orígenes CORS a los dominios necesarios.
+- No publicar credenciales ni secretos en el repositorio o el frontend.
+- Utilizar HTTPS para REST y WebSocket.
+
+## Autor
+
+Desarrollado por [Gonzalo Celan](https://github.com/GonzaloCelan).
+
+Repositorio: [GonzaloCelan/BienCriollas-Backend](https://github.com/GonzaloCelan/BienCriollas-Backend)
