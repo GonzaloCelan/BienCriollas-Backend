@@ -21,6 +21,7 @@ import com.bienCriollas.stock.pedido.dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.pedido.dto.PedidoEventoDTO;
 import com.bienCriollas.stock.pedido.dto.PedidoRequestDTO;
 import com.bienCriollas.stock.pedido.dto.PedidoResponseDTO;
+import com.bienCriollas.stock.pedido.dto.ActualizarPagoRequestDTO;
 import com.bienCriollas.stock.pedido.interfaces.IPedidoService;
 import com.bienCriollas.stock.pedido.enums.TipoEstado;
 import com.bienCriollas.stock.pedido.enums.TipoPago;
@@ -91,7 +92,7 @@ public class PedidoController {
 	    try {
 	        estadoEnum = TipoEstado.valueOf(nuevoEstado.toUpperCase());
 	    } catch (IllegalArgumentException e) {
-	        throw new RuntimeException("Estado inválido: " + nuevoEstado);
+	        throw new IllegalArgumentException("Estado inválido: " + nuevoEstado);
 	    }
 
 	    Boolean response = pedidoService.actualizarEstadoPedido(id, estadoEnum);
@@ -119,19 +120,26 @@ public class PedidoController {
 	
 	
 	@PutMapping("/actualizar-pago/{id}/{nuevoPago}")
-	@Operation(summary = "Cambiar el medio de pago", description = "Actualiza el tipo de pago asociado al pedido.")
+	@Operation(
+			summary = "Cambiar el medio de pago",
+			description = "Actualiza el tipo de pago. Para COMBINADO requiere montoEfectivo y montoTransferencia en el body.")
 	public ResponseEntity<Boolean> actualizarTipoPago(
 	        @PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
-	        @PathVariable @Parameter(description = "EFECTIVO, TRANSFERENCIA o COMBINADO", example = "EFECTIVO") String nuevoPago) {
+	        @PathVariable @Parameter(description = "EFECTIVO, TRANSFERENCIA o COMBINADO", example = "EFECTIVO") String nuevoPago,
+	        @RequestBody(required = false) ActualizarPagoRequestDTO montos) {
 
 	    TipoPago pagoEnum;
 	    try {
-	    	pagoEnum = TipoPago.valueOf(nuevoPago.toUpperCase());
+	    	 pagoEnum = TipoPago.valueOf(nuevoPago.toUpperCase());
 	    } catch (IllegalArgumentException e) {
-	        throw new RuntimeException("Estado inválido: " + nuevoPago);
+	        throw new IllegalArgumentException("Tipo de pago inválido: " + nuevoPago);
 	    }
 
-	    Boolean response = pedidoService.actualizarTipoPago(id, pagoEnum);
+	    Boolean response = pedidoService.actualizarTipoPago(
+	            id,
+	            pagoEnum,
+	            montos == null ? null : montos.montoEfectivo(),
+	            montos == null ? null : montos.montoTransferencia());
 	    return ResponseEntity.ok(response);
 	}
 	
@@ -146,7 +154,7 @@ public class PedidoController {
 	    try {
 	        estadoEnum = TipoEstado.valueOf(estado.toUpperCase());
 	    } catch (IllegalArgumentException e) {
-	        throw new RuntimeException("Estado inválido: " + estado);
+	        throw new IllegalArgumentException("Estado inválido: " + estado);
 	    }
 
 	    return ResponseEntity.ok(pedidoService.obtenerPedidosPaginados(estadoEnum, page, size));
@@ -157,7 +165,7 @@ public class PedidoController {
 	@GetMapping("/por-fecha/{fecha}")
 	@Operation(summary = "Listar pedidos por fecha", description = "Busca todos los pedidos de una fecha determinada.")
 	public ResponseEntity<?> obtenerPedidosPorFecha( @PathVariable
-	        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+	        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
 	        LocalDate fecha) {
 		
 	    return ResponseEntity.ok(pedidoService.obtenerPedidosPorFecha(fecha));

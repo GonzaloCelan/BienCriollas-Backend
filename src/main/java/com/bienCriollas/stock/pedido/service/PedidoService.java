@@ -2,12 +2,13 @@ package com.bienCriollas.stock.pedido.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.springframework.data.domain.Sort;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,15 +21,14 @@ import com.bienCriollas.stock.pedido.dto.PedidoDetalleResponseDTO;
 import com.bienCriollas.stock.pedido.dto.PedidoRequestDTO;
 import com.bienCriollas.stock.pedido.dto.PedidoResponseDTO;
 import com.bienCriollas.stock.pedido.interfaces.IPedidoService;
+import com.bienCriollas.stock.pedido.exception.PedidoNoEncontradoException;
 
 import com.bienCriollas.stock.pedido.entity.DetallePedido;
 import com.bienCriollas.stock.pedido.entity.Pedido;
-import com.bienCriollas.stock.stock.entity.Stock;
 import com.bienCriollas.stock.variedad.entity.VariedadEmpanada;
 
 import com.bienCriollas.stock.pedido.repository.PedidoDetalleRepository;
 import com.bienCriollas.stock.pedido.repository.PedidoRepository;
-import com.bienCriollas.stock.stock.repository.StockRepository;
 import com.bienCriollas.stock.variedad.repository.VariedadEmpanadaRepository;
 import com.bienCriollas.stock.stock.service.StockService;
 
@@ -49,8 +49,6 @@ public class PedidoService implements IPedidoService {
 
 	private final PedidoDetalleRepository detallePedidoRepository;
 	
-	private final StockRepository stockRepository;
-	
 	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
 
 	
@@ -63,22 +61,18 @@ public class PedidoService implements IPedidoService {
 
 	   
 	    
-	    if(pedidoDTO == null) {
-	    	throw new RuntimeException("El pedido no puede ser null");
+	    if (pedidoDTO == null) {
+	    	throw new IllegalArgumentException("El pedido no puede ser null");
 	    }
+	    validarPedidoParaActualizar(pedidoDTO);
 	    
 	    // ✅ Fecha de hoy en Argentina (evita desfasajes en Railway)
 	    LocalDate fechaActual = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
 	    
 	    
 	 // 1) Parsear enums una sola vez
-	    TipoVenta tipoVenta = pedidoDTO.tipoVenta() != null
-	            ? Enum.valueOf(TipoVenta.class, pedidoDTO.tipoVenta())
-	            : null;
-
-	    TipoPago tipoPago = pedidoDTO.tipoPago() != null
-	            ? Enum.valueOf(TipoPago.class, pedidoDTO.tipoPago())
-	            : null;
+	    TipoVenta tipoVenta = parsearEnum(TipoVenta.class, pedidoDTO.tipoVenta(), "tipo de venta");
+	    TipoPago tipoPago = parsearEnum(TipoPago.class, pedidoDTO.tipoPago(), "tipo de pago");
 
 	    
 	    //Calcular montos según tipo de pago
@@ -146,30 +140,33 @@ public class PedidoService implements IPedidoService {
 	  
 	    Pedido pedidoGuardado = pedidoRepository.save(nuevoPedido);
 	    
-	    // Recorremos los detalles del pedido y los guardamos
-	    
+	    // Agrupamos y bloqueamos todas las variedades en orden antes de descontar.
+	    // Así dos pedidos simultáneos nunca pisan el valor de stock del otro.
 	    List<PedidoDetalleRequestDTO> detallesPedido = pedidoDTO.detalles();
-	    
-	    detallesPedido.forEach(det -> {
-	    	
-	    	VariedadEmpanada variedad = variedadEmpanadaRepository.findById(det.idVariedad()).orElse(null);
-	    	
-	    	if(variedad == null) {
-	    		throw new RuntimeException("No se encontró la variedad con id " + det.idVariedad());
-	    	}
-	    	
+	    Map<Long, VariedadEmpanada> variedades = new HashMap<>();
+	    TreeMap<Long, Integer> cantidades = new TreeMap<>();
+
+	    for (PedidoDetalleRequestDTO det : detallesPedido) {
+	    	VariedadEmpanada variedad = variedadEmpanadaRepository.findById(det.idVariedad())
+	    			.orElseThrow(() -> new IllegalArgumentException(
+	    					"No se encontró la variedad con id " + det.idVariedad()));
+	    	variedades.put(det.idVariedad(), variedad);
+	    	cantidades.merge(det.idVariedad(), det.cantidad(), Math::addExact);
+	    }
+
+	    TreeMap<Long, Integer> descuentos = new TreeMap<>();
+	    cantidades.forEach((idVariedad, cantidad) -> descuentos.put(idVariedad, -cantidad));
+	    stockService.ajustarDisponibilidad(descuentos);
+
+	    for (PedidoDetalleRequestDTO det : detallesPedido) {
 	    	DetallePedido detalle = DetallePedido.builder()
 	    			.pedido(nuevoPedido)
-	    			.variedad(variedad)
+	    			.variedad(variedades.get(det.idVariedad()))
 	    			.cantidad(det.cantidad())
 	    			.build();
-	    	
-	    	
-	    	stockService.descontarStockVariedad(variedad.getId_variedad(), det.cantidad());
 	    	detallePedidoRepository.save(detalle);
-	    	
 	    	nuevoPedido.getDetalles().add(detalle);
-	    });
+	    }
 	    
 	    //Retornamos el pedido guardado como DTO
 	    return new PedidoResponseDTO(
@@ -193,8 +190,8 @@ public class PedidoService implements IPedidoService {
 			throw new IllegalArgumentException("El pedido no puede ser null");
 		}
 
-		Pedido pedido = pedidoRepository.findById(idPedido)
-				.orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+		Pedido pedido = pedidoRepository.findByIdParaActualizar(idPedido)
+				.orElseThrow(() -> new PedidoNoEncontradoException(idPedido));
 
 		if (pedido.getEstado() != TipoEstado.PENDIENTE && pedido.getEstado() != TipoEstado.PREPARADO) {
 			throw new IllegalStateException(
@@ -207,9 +204,20 @@ public class PedidoService implements IPedidoService {
 		TipoPago tipoPago = parsearEnum(TipoPago.class, pedidoDTO.tipoPago(), "tipo de pago");
 		MontosPago montos = calcularMontosPago(pedidoDTO, tipoPago);
 
-		// Se devuelve el stock anterior antes de reemplazar los detalles. Si alguna
-		// operación posterior falla, @Transactional revierte toda la actualización.
-		devolverStockPorCancelacion(pedido);
+		Map<Long, VariedadEmpanada> variedadesNuevas = new HashMap<>();
+		TreeMap<Long, Integer> cambiosStock = cantidadesDelPedido(pedido);
+
+		for (PedidoDetalleRequestDTO detalleDTO : pedidoDTO.detalles()) {
+			VariedadEmpanada variedad = variedadEmpanadaRepository.findById(detalleDTO.idVariedad())
+					.orElseThrow(() -> new IllegalArgumentException(
+							"No se encontró la variedad con id " + detalleDTO.idVariedad()));
+			variedadesNuevas.put(detalleDTO.idVariedad(), variedad);
+			cambiosStock.merge(detalleDTO.idVariedad(), -detalleDTO.cantidad(), Math::addExact);
+		}
+
+		// Se aplica solamente la diferencia neta entre el pedido anterior y el nuevo.
+		// El servicio de stock bloquea todas las variedades en un orden estable.
+		stockService.ajustarDisponibilidad(cambiosStock);
 		pedido.getDetalles().clear();
 
 		pedido.setCliente(pedidoDTO.cliente().trim());
@@ -222,15 +230,9 @@ public class PedidoService implements IPedidoService {
 		pedido.setTotalPedido(pedidoDTO.totalPedido());
 
 		for (PedidoDetalleRequestDTO detalleDTO : pedidoDTO.detalles()) {
-			VariedadEmpanada variedad = variedadEmpanadaRepository.findById(detalleDTO.idVariedad())
-					.orElseThrow(() -> new RuntimeException(
-							"No se encontró la variedad con id " + detalleDTO.idVariedad()));
-
-			stockService.descontarStockVariedad(variedad.getId_variedad(), detalleDTO.cantidad());
-
 			pedido.getDetalles().add(DetallePedido.builder()
 					.pedido(pedido)
-					.variedad(variedad)
+					.variedad(variedadesNuevas.get(detalleDTO.idVariedad()))
 					.cantidad(detalleDTO.cantidad())
 					.build());
 		}
@@ -248,14 +250,24 @@ public class PedidoService implements IPedidoService {
 	@Transactional
 	public boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado) {
 
-	    Pedido pedido = pedidoRepository.findById(idPedido)
-	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+	    if (nuevoEstado == null) {
+	        throw new IllegalArgumentException("El nuevo estado es obligatorio");
+	    }
+
+	    Pedido pedido = pedidoRepository.findByIdParaActualizar(idPedido)
+	            .orElseThrow(() -> new PedidoNoEncontradoException(idPedido));
 
 	    TipoEstado estadoAnterior = pedido.getEstado();
+	    if (estadoAnterior == nuevoEstado) {
+	        return true;
+	    }
 
-	    // PENDIENTE -> CANCELADO
-	    if (nuevoEstado == TipoEstado.CANCELADO
-	            && (estadoAnterior == TipoEstado.PENDIENTE || estadoAnterior == TipoEstado.PREPARADO)) {
+	    if (!esTransicionPermitida(estadoAnterior, nuevoEstado)) {
+	        throw new IllegalStateException(
+	                "No se permite cambiar el pedido de " + estadoAnterior + " a " + nuevoEstado);
+	    }
+
+	    if (nuevoEstado == TipoEstado.CANCELADO) {
 
 	        devolverStockPorCancelacion(pedido);
 
@@ -278,21 +290,25 @@ public class PedidoService implements IPedidoService {
 	
 	@Override
 	@Transactional
-	public boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago) {
+	public boolean actualizarTipoPago(
+			Long idPedido,
+			TipoPago nuevoTipoPago,
+			BigDecimal montoEfectivo,
+			BigDecimal montoTransferencia) {
 
-	    Pedido pedido = pedidoRepository.findById(idPedido)
-	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+	    Pedido pedido = pedidoRepository.findByIdParaActualizar(idPedido)
+	            .orElseThrow(() -> new PedidoNoEncontradoException(idPedido));
 
 	    if (pedido.getEstado() != TipoEstado.PENDIENTE && pedido.getEstado() != TipoEstado.PREPARADO) {
-	        throw new RuntimeException("Solo se puede cambiar el tipo de pago si el pedido está PENDIENTE o PREPARADO");
+	        throw new IllegalStateException(
+	                "Solo se puede cambiar el tipo de pago si el pedido está PENDIENTE o PREPARADO");
 	    }
 
 	    if (nuevoTipoPago == null) {
-	        throw new RuntimeException("El nuevo tipo de pago no puede ser null");
+	        throw new IllegalArgumentException("El nuevo tipo de pago no puede ser null");
 	    }
 
-	    // total actual (si tenés pedido.getTotal() / getImporteTotal(), usalo mejor)
-	    BigDecimal total = pedido.getMontoEfectivo().add(pedido.getMontoTransferencia());
+	    BigDecimal total = pedido.getTotalPedido();
 
 	    switch (nuevoTipoPago) {
 	        case EFECTIVO -> {
@@ -306,8 +322,22 @@ public class PedidoService implements IPedidoService {
 	            pedido.setMontoTransferencia(total);
 	        }
 	        case COMBINADO -> {
-	            // con esta firma no podés saber los montos
-	            throw new RuntimeException("Para COMBINADO tenés que enviar montoEfectivo y montoTransferencia");
+	            if (montoEfectivo == null || montoTransferencia == null) {
+	                throw new IllegalArgumentException(
+	                        "Para COMBINADO tenés que enviar montoEfectivo y montoTransferencia");
+	            }
+	            if (montoEfectivo.compareTo(BigDecimal.ZERO) < 0
+	                    || montoTransferencia.compareTo(BigDecimal.ZERO) < 0) {
+	                throw new IllegalArgumentException("Los montos de pago no pueden ser negativos");
+	            }
+	            if (montoEfectivo.add(montoTransferencia).compareTo(total) != 0) {
+	                throw new IllegalArgumentException(
+	                        "La suma de efectivo + transferencia debe ser igual al total del pedido");
+	            }
+
+	            pedido.setTipoPago(TipoPago.COMBINADO);
+	            pedido.setMontoEfectivo(montoEfectivo);
+	            pedido.setMontoTransferencia(montoTransferencia);
 	        }
 	    }
 
@@ -372,7 +402,7 @@ public class PedidoService implements IPedidoService {
 	public List<PedidoDetalleResponseDTO> obtenerDetallesPedido(Long idPedido) {
 
 	    Pedido pedidoExist = pedidoRepository.findById(idPedido)
-	            .orElseThrow(() -> new RuntimeException("No se encontró el pedido con id " + idPedido));
+	            .orElseThrow(() -> new PedidoNoEncontradoException(idPedido));
 
 	    List<DetallePedido> detalles = pedidoExist.getDetalles(); 
 
@@ -492,25 +522,28 @@ public class PedidoService implements IPedidoService {
     
 	
 	private void devolverStockPorCancelacion(Pedido pedido) {
+	    stockService.ajustarDisponibilidad(cantidadesDelPedido(pedido));
+	}
 
-	    // Recorremos cada detalle del pedido
-	    for (DetallePedido det : pedido.getDetalles()) {
+	private TreeMap<Long, Integer> cantidadesDelPedido(Pedido pedido) {
+		TreeMap<Long, Integer> cantidades = new TreeMap<>();
+		for (DetallePedido detalle : pedido.getDetalles()) {
+			cantidades.merge(
+					detalle.getVariedad().getId_variedad(),
+					detalle.getCantidad(),
+					Math::addExact);
+		}
+		return cantidades;
+	}
 
-	        // ⚠️ Ajustá estos getters a como se llaman en tu entidad
-	        Long idVariedad = det.getVariedad().getId_variedad();   // ej: getVariedadEmpanada()
-	        Integer cantidad = det.getCantidad();
-
-	        // buscamos el último stock ACTIVO de esa variedad
-	        Stock ultimoStock = stockRepository
-	                .findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(idVariedad, 1);
-
-	        if (ultimoStock != null) {
-	            Integer disponibleActual = ultimoStock.getStockDisponible();
-	            ultimoStock.setStockDisponible(disponibleActual + cantidad);
-
-	            stockRepository.save(ultimoStock);
-	        }
-	    }
+	private boolean esTransicionPermitida(TipoEstado estadoActual, TipoEstado nuevoEstado) {
+		return switch (estadoActual) {
+			case PENDIENTE -> nuevoEstado == TipoEstado.PREPARADO
+					|| nuevoEstado == TipoEstado.CANCELADO;
+			case PREPARADO -> nuevoEstado == TipoEstado.ENTREGADO
+					|| nuevoEstado == TipoEstado.CANCELADO;
+			case ENTREGADO, CANCELADO -> false;
+		};
 	}
 
 	private void validarPedidoParaActualizar(PedidoRequestDTO pedidoDTO) {

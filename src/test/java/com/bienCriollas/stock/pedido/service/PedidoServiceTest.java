@@ -3,8 +3,7 @@ package com.bienCriollas.stock.pedido.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -29,10 +29,9 @@ import com.bienCriollas.stock.pedido.entity.Pedido;
 import com.bienCriollas.stock.pedido.enums.TipoEstado;
 import com.bienCriollas.stock.pedido.enums.TipoPago;
 import com.bienCriollas.stock.pedido.enums.TipoVenta;
+import com.bienCriollas.stock.pedido.exception.PedidoNoEncontradoException;
 import com.bienCriollas.stock.pedido.repository.PedidoDetalleRepository;
 import com.bienCriollas.stock.pedido.repository.PedidoRepository;
-import com.bienCriollas.stock.stock.entity.Stock;
-import com.bienCriollas.stock.stock.repository.StockRepository;
 import com.bienCriollas.stock.stock.service.StockService;
 import com.bienCriollas.stock.variedad.entity.VariedadEmpanada;
 import com.bienCriollas.stock.variedad.repository.VariedadEmpanadaRepository;
@@ -48,9 +47,6 @@ class PedidoServiceTest {
 
     @Mock
     private PedidoDetalleRepository detallePedidoRepository;
-
-    @Mock
-    private StockRepository stockRepository;
 
     @Mock
     private VariedadEmpanadaRepository variedadEmpanadaRepository;
@@ -87,7 +83,7 @@ class PedidoServiceTest {
 
         assertEquals(horarioEntrega, response.horaEntrega());
         verify(pedidoRepository).save(any(Pedido.class));
-        verify(stockService).descontarStockVariedad(2L, 6);
+        verify(stockService).ajustarDisponibilidad(eq(Map.of(2L, -6)));
     }
 
     @Test
@@ -118,12 +114,6 @@ class PedidoServiceTest {
                 .cantidad(4)
                 .build());
 
-        Stock stockAnterior = Stock.builder()
-                .idVariedad(1L)
-                .stockDisponible(10)
-                .activo(1)
-                .build();
-
         PedidoRequestDTO request = new PedidoRequestDTO(
                 "Cliente actualizado",
                 "particular",
@@ -135,9 +125,7 @@ class PedidoServiceTest {
                 new BigDecimal("9000"),
                 List.of(new PedidoDetalleRequestDTO(2L, 6)));
 
-        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
-        when(stockRepository.findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(1L, 1))
-                .thenReturn(stockAnterior);
+        when(pedidoRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(pedido));
         when(variedadEmpanadaRepository.findById(2L)).thenReturn(Optional.of(variedadNueva));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -153,11 +141,9 @@ class PedidoServiceTest {
         assertEquals(1, pedido.getDetalles().size());
         assertEquals(2L, pedido.getDetalles().get(0).getVariedad().getId_variedad());
         assertEquals(6, pedido.getDetalles().get(0).getCantidad());
-        assertEquals(14, stockAnterior.getStockDisponible());
         assertEquals(10L, response.idPedido());
 
-        verify(stockRepository).save(stockAnterior);
-        verify(stockService).descontarStockVariedad(2L, 6);
+        verify(stockService).ajustarDisponibilidad(eq(Map.of(1L, 4, 2L, -6)));
     }
 
     @Test
@@ -178,14 +164,67 @@ class PedidoServiceTest {
                 new BigDecimal("1000"),
                 List.of(new PedidoDetalleRequestDTO(1L, 1)));
 
-        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(pedido));
 
         assertThrows(IllegalStateException.class,
                 () -> pedidoService.actualizarPedido(10L, request));
 
-        verify(stockRepository, never())
-                .findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(anyLong(), anyInt());
-        verify(stockService, never()).descontarStockVariedad(anyLong(), anyInt());
+        verify(stockService, never()).ajustarDisponibilidad(any());
         verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void actualizarEstadoRechazaEntregadoACancelado() {
+        Pedido pedido = Pedido.builder()
+                .idPedido(10L)
+                .estado(TipoEstado.ENTREGADO)
+                .detalles(new ArrayList<>())
+                .build();
+        when(pedidoRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(pedido));
+
+        IllegalStateException error = assertThrows(
+                IllegalStateException.class,
+                () -> pedidoService.actualizarEstadoPedido(10L, TipoEstado.CANCELADO));
+
+        assertEquals(
+                "No se permite cambiar el pedido de ENTREGADO a CANCELADO",
+                error.getMessage());
+        verify(stockService, never()).ajustarDisponibilidad(any());
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void actualizarPagoAceptaCombinadoConImportesValidos() {
+        Pedido pedido = Pedido.builder()
+                .idPedido(10L)
+                .estado(TipoEstado.PENDIENTE)
+                .tipoPago(TipoPago.EFECTIVO)
+                .montoEfectivo(new BigDecimal("9000"))
+                .montoTransferencia(BigDecimal.ZERO)
+                .totalPedido(new BigDecimal("9000"))
+                .detalles(new ArrayList<>())
+                .build();
+        when(pedidoRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(pedido));
+
+        boolean actualizado = pedidoService.actualizarTipoPago(
+                10L,
+                TipoPago.COMBINADO,
+                new BigDecimal("5000"),
+                new BigDecimal("4000"));
+
+        assertEquals(true, actualizado);
+        assertEquals(TipoPago.COMBINADO, pedido.getTipoPago());
+        assertEquals(new BigDecimal("5000"), pedido.getMontoEfectivo());
+        assertEquals(new BigDecimal("4000"), pedido.getMontoTransferencia());
+        verify(pedidoRepository).save(pedido);
+    }
+
+    @Test
+    void modificarPedidoInexistenteDevuelveExcepcionEspecifica() {
+        when(pedidoRepository.findByIdParaActualizar(999L)).thenReturn(Optional.empty());
+
+        assertThrows(
+                PedidoNoEncontradoException.class,
+                () -> pedidoService.actualizarEstadoPedido(999L, TipoEstado.PREPARADO));
     }
 }

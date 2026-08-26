@@ -1,5 +1,6 @@
 package com.bienCriollas.stock.pedido.interfaces;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -20,7 +21,11 @@ public interface IPedidoService {
 	  
 	  public boolean actualizarEstadoPedido(Long idPedido, TipoEstado nuevoEstado);
 	  
-	  public boolean actualizarTipoPago(Long idPedido, TipoPago nuevoTipoPago);
+	  public boolean actualizarTipoPago(
+			  Long idPedido,
+			  TipoPago nuevoTipoPago,
+			  BigDecimal montoEfectivo,
+			  BigDecimal montoTransferencia);
 	  
 	  public IngresosDiariosDTO calcularIngresosDiarios(LocalDate fecha , TipoEstado estado);
 	  

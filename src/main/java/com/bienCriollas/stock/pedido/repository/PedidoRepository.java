@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,9 +19,15 @@ import com.bienCriollas.stock.pedido.entity.Pedido;
 import com.bienCriollas.stock.pedido.enums.TipoEstado;
 import com.bienCriollas.stock.pedido.enums.TipoVenta;
 
+import jakarta.persistence.LockModeType;
+
 
 @Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long> {
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select p from Pedido p where p.idPedido = :idPedido")
+	Optional<Pedido> findByIdParaActualizar(@Param("idPedido") Long idPedido);
 
 	List<Pedido> findByEstado(TipoEstado estado);
 	

@@ -203,7 +203,7 @@ OpenAPI YAML: http://localhost:8080/v3/api-docs.yaml
 
 Swagger UI permite explorar los endpoints por módulo, consultar parámetros y esquemas, ver ejemplos, ejecutar operaciones con **Try it out** y descargar el contrato OpenAPI.
 
-La configuración general se encuentra en `config/OpenApiConfig.java`. Las rutas y opciones de la interfaz se definen en `application.properties`.
+La configuración general se encuentra en `config/OpenApiConfig.java`. Springdoc publica las rutas estándar de Swagger UI y OpenAPI automáticamente.
 
 ## Resumen de endpoints
 
@@ -216,7 +216,7 @@ Todas las rutas REST utilizan la versión `/api/v2`.
 | `POST` | `/crear` | Crea un pedido, descuenta stock y publica un evento WebSocket. |
 | `PUT` | `/actualizar/{id}` | Reemplaza los datos y detalles completos del pedido. |
 | `PUT` | `/actualizar-estado/{id}/{nuevoEstado}` | Cambia el estado y lo comunica en tiempo real. |
-| `PUT` | `/actualizar-pago/{id}/{nuevoPago}` | Cambia el medio de pago. |
+| `PUT` | `/actualizar-pago/{id}/{nuevoPago}` | Cambia el medio de pago; `COMBINADO` recibe los dos importes en JSON. |
 | `GET` | `/pedido-estado/{estado}?page=0&size=10` | Lista pedidos del día por estado. |
 | `GET` | `/por-fecha/{fecha}` | Lista pedidos de una fecha. |
 | `GET` | `/detalle/{id}` | Obtiene las variedades y cantidades del pedido. |
@@ -282,12 +282,16 @@ Las fechas se envían en formato `yyyy-MM-dd` y los horarios en formato `HH:mm:s
 - Todo pedido nuevo se crea con estado `PENDIENTE`.
 - La creación descuenta del stock las cantidades de cada variedad.
 - Un pedido completo solo puede editarse mientras esté `PENDIENTE` o `PREPARADO`.
-- La edición completa devuelve primero el stock del detalle anterior y luego descuenta el nuevo.
+- La creación, edición, cancelación, producción, ajuste y merma bloquean los registros de stock involucrados antes de modificarlos.
+- La edición completa aplica la diferencia neta entre el detalle anterior y el nuevo.
 - La actualización es transaccional: si alguna variedad o cantidad falla, no quedan cambios parciales.
+- Las variedades se bloquean siempre en el mismo orden para evitar condiciones de carrera y deadlocks.
 - Al cancelar un pedido se devuelve su stock disponible.
 - En pagos `EFECTIVO`, el total se asigna a efectivo.
 - En pagos `TRANSFERENCIA`, el total se asigna a transferencia.
 - En pagos `COMBINADO`, efectivo más transferencia deben coincidir exactamente con `totalPedido`.
+- Las transiciones permitidas son `PENDIENTE → PREPARADO → ENTREGADO` y `PENDIENTE/PREPARADO → CANCELADO`.
+- Un pedido `ENTREGADO` o `CANCELADO` no puede pasar a otro estado.
 - `numeroPedidoPedidosYa` se utiliza para ventas provenientes de `PEDIDOS_YA`.
 - `horaEntrega` utiliza el formato `HH:mm:ss` y se guarda al crear y al editar.
 
@@ -360,6 +364,38 @@ Respuesta:
 ```json
 true
 ```
+
+### Cambiar a pago combinado
+
+```http
+PUT /api/v2/pedido/actualizar-pago/123/COMBINADO
+Content-Type: application/json
+```
+
+```json
+{
+  "montoEfectivo": 5000,
+  "montoTransferencia": 4000
+}
+```
+
+Para cambiar a `EFECTIVO` o `TRANSFERENCIA` el body es opcional. Para `COMBINADO`, ambos importes son obligatorios, no pueden ser negativos y su suma debe coincidir con `totalPedido`.
+
+### Respuestas de error
+
+Los errores se devuelven sin stack trace ni información interna. Por ejemplo, un pedido inexistente responde `404 Not Found`:
+
+```json
+{
+  "timestamp": "2026-08-26T12:04:13-03:00",
+  "status": 404,
+  "error": "Not Found",
+  "message": "No se encontró el pedido con id 999999",
+  "path": "/api/v2/pedido/detalle/999999"
+}
+```
+
+Las validaciones de entrada responden `400 Bad Request`; falta de stock y transiciones de estado inválidas responden `409 Conflict`.
 
 ### Registrar producción
 
@@ -450,6 +486,9 @@ La suite incluye:
 - Carga del contexto de Spring Boot.
 - Actualización completa de pedidos y movimientos de stock.
 - Rechazo de edición para pedidos entregados.
+- Reglas de transición de estados y pagos combinados.
+- Respuestas específicas para pedidos inexistentes.
+- Prueba de 40 descuentos simultáneos que verifica que no se pierda ninguna actualización de stock.
 - Persistencia y respuesta del horario de entrega durante la creación.
 
 ## Despliegue
