@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: stock
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/biencriollas_local?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Argentina/Buenos_Aires&characterEncoding=utf8}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 5
+  jackson:
+    time-zone: America/Argentina/Buenos_Aires
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    show-sql: false
+    database-platform: org.hibernate.dialect.MySQLDialect
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: America/Argentina/Buenos_Aires
+
+server:
+  port: ${PORT:8080}

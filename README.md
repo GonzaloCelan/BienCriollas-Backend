@@ -148,6 +148,8 @@ La propiedad `spring.jpa.hibernate.ddl-auto` está configurada como `none`. Por 
 
 ### 3. Configurar las credenciales
 
+La configuración compartida y sin secretos está en `application.yml`. Las credenciales reales se leen desde variables de entorno.
+
 PowerShell:
 
 ```powershell
@@ -163,6 +165,8 @@ export DB_URL='jdbc:mysql://localhost:3306/biencriollas_local?useSSL=false&allow
 export DB_USER='root'
 export DB_PASSWORD='tu_password'
 ```
+
+Como alternativa únicamente para desarrollo local, se puede copiar `src/main/resources/application.properties.example` como `src/main/resources/application.properties` y completar los valores. Ese archivo está incluido en `.gitignore` y no debe agregarse al repositorio.
 
 ### 4. Ejecutar la aplicación
 
@@ -187,9 +191,9 @@ Por defecto, el backend queda disponible en `http://localhost:8080`.
 | `PORT` | No | `8080` | Puerto HTTP utilizado por la aplicación. |
 | `DB_URL` | En producción | URL de `biencriollas_local` | URL JDBC completa de MySQL. |
 | `DB_USER` | En producción | `root` | Usuario de la base de datos. |
-| `DB_PASSWORD` | En producción | Valor local de desarrollo | Contraseña de la base de datos. |
+| `DB_PASSWORD` | Sí | Sin valor | Contraseña de la base de datos. |
 
-En producción se deben definir siempre las credenciales mediante variables de entorno y nunca incorporarlas al repositorio.
+Las credenciales se deben definir siempre mediante variables de entorno o en el archivo local ignorado, nunca en archivos versionados.
 
 ## Swagger y OpenAPI
 
