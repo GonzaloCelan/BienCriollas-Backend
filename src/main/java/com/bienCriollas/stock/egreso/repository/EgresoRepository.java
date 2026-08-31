@@ -2,7 +2,6 @@ package com.bienCriollas.stock.egreso.repository;
 
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,14 +11,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
-import com.bienCriollas.stock.egreso.interfaces.EgresoMesTotalesProjection;
 import com.bienCriollas.stock.egreso.interfaces.EgresoTotalPorTipoProjection;
 import com.bienCriollas.stock.egreso.entity.Egreso;
 import com.bienCriollas.stock.egreso.enums.TipoEgreso;
 
-@Repository
 public interface EgresoRepository extends JpaRepository<Egreso, Long> {
 
     /*

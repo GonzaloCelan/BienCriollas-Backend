@@ -10,6 +10,10 @@ spring:
       maximum-pool-size: 5
   jackson:
     time-zone: America/Argentina/Buenos_Aires
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
   jpa:
     hibernate:
       ddl-auto: none
@@ -24,3 +28,19 @@ spring:
 
 server:
   port: ${PORT:8080}
+
+app:
+  security:
+    jwt-secret: ${JWT_SECRET}
+    issuer: ${JWT_ISSUER:bien-criollas-api}
+    access-token-expiration: ${JWT_EXPIRATION:8h}
+    bootstrap-admin:
+      username: ${ADMIN_USERNAME:}
+      password: ${ADMIN_PASSWORD:}
+      name: ${ADMIN_NAME:Administrador}
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}

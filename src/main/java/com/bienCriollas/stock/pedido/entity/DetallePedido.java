@@ -1,9 +1,5 @@
 package com.bienCriollas.stock.pedido.entity;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
 import com.bienCriollas.stock.variedad.entity.VariedadEmpanada;
 
 import jakarta.persistence.Column;
@@ -16,7 +12,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -192,6 +192,13 @@ Por defecto, el backend queda disponible en `http://localhost:8080`.
 | `DB_URL` | En producción | URL de `biencriollas_local` | URL JDBC completa de MySQL. |
 | `DB_USER` | En producción | `root` | Usuario de la base de datos. |
 | `DB_PASSWORD` | Sí | Sin valor | Contraseña de la base de datos. |
+| `JWT_SECRET` | Sí | Sin valor | Secreto Base64 de al menos 32 bytes aleatorios para firmar los JWT. |
+| `JWT_ISSUER` | No | `bien-criollas-api` | Emisor esperado en los JWT. |
+| `JWT_EXPIRATION` | No | `8h` | Duración de los tokens de acceso. |
+| `ADMIN_USERNAME` | En el primer inicio | Sin valor | Usuario del administrador inicial. |
+| `ADMIN_PASSWORD` | En el primer inicio | Sin valor | Contraseña inicial; mínimo 10 caracteres. |
+| `ADMIN_NAME` | No | `Administrador` | Nombre visible del administrador inicial. |
+| `SWAGGER_ENABLED` | No | `true` | Permite deshabilitar Swagger y OpenAPI en producción. |
 
 Las credenciales se deben definir siempre mediante variables de entorno o en el archivo local ignorado, nunca en archivos versionados.
 
@@ -454,6 +461,9 @@ import SockJS from "sockjs-client";
 
 const client = new Client({
   webSocketFactory: () => new SockJS(`${BACKEND_URL}/ws`),
+  connectHeaders: {
+    Authorization: `Bearer ${accessToken}`
+  },
   reconnectDelay: 5000
 });
 
@@ -521,15 +531,80 @@ Los orígenes habilitados para el frontend se administran en `config/CorsConfig.
 
 ## Seguridad
 
-El proyecto contiene Spring Security, pero actualmente las solicitudes están configuradas con acceso público mediante `permitAll()`. Swagger también queda accesible para facilitar el desarrollo y las pruebas.
+La API utiliza autenticación stateless con JWT Bearer y dos roles:
 
-Antes de exponer el sistema a usuarios no confiables se recomienda:
+| Recurso | `EMPLEADO` | `ADMINISTRADOR` |
+|---|---:|---:|
+| Pedidos | Sí | Sí |
+| Stock y mermas | Sí | Sí |
+| Lectura del catálogo | Sí | Sí |
+| Modificación de precios | No | Sí |
+| Ingresos, egresos y estadísticas | No | Sí |
+| Administración de usuarios | No | Sí |
 
-- Incorporar autenticación y autorización.
-- Restringir Swagger en producción si la documentación no debe ser pública.
-- Limitar los orígenes CORS a los dominios necesarios.
-- No publicar credenciales ni secretos en el repositorio o el frontend.
-- Utilizar HTTPS para REST y WebSocket.
+Las contraseñas se almacenan con BCrypt (coste 12). Los JWT se firman con HS256, validan emisor y vencimiento y contienen una versión de seguridad. Al cerrar sesión, cambiar una contraseña, modificar un rol o desactivar una cuenta, esa versión cambia y todos los tokens anteriores quedan revocados inmediatamente.
+
+### Primer inicio
+
+La configuración local puede incluir valores de desarrollo, pero permanece fuera de los cambios publicados. En producción, las credenciales y el secreto JWT deben proporcionarse siempre mediante variables de entorno.
+
+Generar un secreto distinto para cada entorno:
+
+```bash
+openssl rand -base64 32
+```
+
+Configurar antes de iniciar, por ejemplo en PowerShell:
+
+```powershell
+$env:JWT_SECRET="resultado_base64_del_comando_anterior"
+$env:ADMIN_USERNAME="admin"
+$env:ADMIN_PASSWORD="una-clave-inicial-segura"
+$env:ADMIN_NAME="Administrador"
+```
+
+Flyway crea la tabla `usuario` al iniciar. Si no existe ningún administrador activo y están presentes `ADMIN_USERNAME` y `ADMIN_PASSWORD`, se crea el primero. Esas variables pueden retirarse después del alta inicial; nunca se persiste la contraseña en texto plano.
+
+### Autenticación
+
+```http
+POST /api/v2/auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "username": "admin",
+  "password": "una-clave-inicial-segura"
+}
+```
+
+La respuesta contiene `accessToken`, `tokenType`, `expiresIn` y los datos no sensibles del usuario. Las siguientes solicitudes deben enviar:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Endpoints de la cuenta autenticada:
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/v2/auth/login` | Inicia sesión. Es el único endpoint REST público de negocio. |
+| `GET` | `/api/v2/auth/me` | Devuelve el usuario autenticado. |
+| `PUT` | `/api/v2/auth/me/password` | Cambia la contraseña propia y revoca los tokens. |
+| `POST` | `/api/v2/auth/logout` | Revoca inmediatamente todos los tokens del usuario. |
+
+Endpoints exclusivos del administrador:
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/v2/usuarios` | Lista usuarios sin exponer hashes. |
+| `POST` | `/api/v2/usuarios` | Crea un administrador o empleado. |
+| `PATCH` | `/api/v2/usuarios/{id}/estado` | Activa o desactiva una cuenta. |
+| `PATCH` | `/api/v2/usuarios/{id}/rol` | Cambia el rol y revoca sus tokens. |
+| `PUT` | `/api/v2/usuarios/{id}/password` | Restablece una contraseña y revoca sus tokens. |
+
+No se permite que un administrador se desactive o cambie su propio rol, ni dejar al sistema sin al menos un administrador activo. Swagger ofrece el botón **Authorize** para cargar el Bearer token. En producción se recomienda definir `SWAGGER_ENABLED=false`, servir exclusivamente mediante HTTPS y aplicar rate limiting al endpoint de login desde el proxy o la plataforma de despliegue.
 
 ## Autor
 

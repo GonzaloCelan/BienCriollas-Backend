@@ -2,6 +2,9 @@ package com.bienCriollas.stock.ingreso.repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,6 +18,10 @@ import lombok.RequiredArgsConstructor;
 @Repository
 @RequiredArgsConstructor
 public class IngresoRepository {
+
+    private static final String ORIGEN_LIQUIDACION_PEDIDOS_YA = "LIQUIDACION_PEDIDOS_YA";
+    private static final ZoneId ZONA_ARGENTINA =
+            ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -214,21 +221,23 @@ public List<IngresoResumenDTO.MovimientoIngresoDTO> obtenerMovimientos(
         ORDER BY fecha_hora DESC, id DESC
     """;
 
-    return jdbcTemplate.query(sql, (rs, rowNum) ->
-            new IngresoResumenDTO.MovimientoIngresoDTO(
+    return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            String origen = rs.getString("origen");
+            LocalDateTime fechaHoraAlmacenada =
+                    rs.getObject("fecha_hora", LocalDateTime.class);
+            return new IngresoResumenDTO.MovimientoIngresoDTO(
                     rs.getLong("id"),
                     rs.getObject("id_pedido") != null ? rs.getLong("id_pedido") : null,
                     rs.getDate("fecha").toLocalDate(),
-                    rs.getTimestamp("fecha_hora") != null
-                            ? rs.getTimestamp("fecha_hora").toLocalDateTime()
-                            : null,
+                    convertirFechaHoraArgentina(origen, fechaHoraAlmacenada),
                     rs.getString("descripcion"),
                     rs.getString("tipo_venta"),
                     rs.getString("medio_pago"),
                     rs.getBigDecimal("monto"),
                     rs.getString("estado_ingreso"),
-                    rs.getString("origen")
-            ),
+                    origen
+            );
+        },
             desde,
             hasta,
             desde,
@@ -238,15 +247,29 @@ public List<IngresoResumenDTO.MovimientoIngresoDTO> obtenerMovimientos(
 
     public void registrarLiquidacionPedidosYa(LiquidacionPedidosYaRequestDTO request) {
         String sql = """
-            INSERT INTO liquidacion_pedidos_ya (fecha, monto, descripcion)
-            VALUES (?, ?, ?)
+            INSERT INTO liquidacion_pedidos_ya (fecha, monto, descripcion, creado_en)
+            VALUES (?, ?, ?, ?)
         """;
 
         jdbcTemplate.update(
                 sql,
                 request.fecha(),
                 request.monto(),
-                request.descripcion()
+                request.descripcion(),
+                LocalDateTime.now(ZoneOffset.UTC)
         );
+    }
+
+    static LocalDateTime convertirFechaHoraArgentina(
+            String origen,
+            LocalDateTime fechaHoraAlmacenada) {
+        if (fechaHoraAlmacenada == null
+                || !ORIGEN_LIQUIDACION_PEDIDOS_YA.equals(origen)) {
+            return fechaHoraAlmacenada;
+        }
+        return fechaHoraAlmacenada
+                .atOffset(ZoneOffset.UTC)
+                .atZoneSameInstant(ZONA_ARGENTINA)
+                .toLocalDateTime();
     }
 }

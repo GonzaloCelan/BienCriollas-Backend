@@ -2,13 +2,10 @@ package com.bienCriollas.stock.stock.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,9 +41,9 @@ public class StockService implements IStockService {
 	@Transactional
 	public Boolean actualizarStock(List<StockDTO> requestList) {
 
-	    List<StockDTO> solicitudesOrdenadas = requestList.stream()
-	            .sorted(Comparator.comparing(StockDTO::id_variedad))
-	            .toList();
+	    List<StockDTO> solicitudesOrdenadas = new ArrayList<>(requestList);
+	    solicitudesOrdenadas.sort((primera, segunda) ->
+	            Long.compare(primera.id_variedad(), segunda.id_variedad()));
 
 	    for (StockDTO request : solicitudesOrdenadas) {
 
@@ -150,7 +147,7 @@ public class StockService implements IStockService {
 				throw new IllegalArgumentException("El id de la variedad es obligatorio");
 			}
 			if (cambio != null && cambio != 0) {
-				cambiosOrdenados.merge(idVariedad, cambio, Math::addExact);
+				acumularCantidad(cambiosOrdenados, idVariedad, cambio);
 			}
 		});
 
@@ -160,8 +157,7 @@ public class StockService implements IStockService {
 
 		List<Stock> stocksBloqueados = stockRepository
 				.findActivosParaActualizar(cambiosOrdenados.keySet());
-		Map<Long, Stock> stockPorVariedad = stocksBloqueados.stream()
-				.collect(Collectors.toMap(Stock::getIdVariedad, Function.identity()));
+		Map<Long, Stock> stockPorVariedad = indexarPorVariedad(stocksBloqueados);
 
 		for (Map.Entry<Long, Integer> cambio : cambiosOrdenados.entrySet()) {
 			Stock stock = stockPorVariedad.get(cambio.getKey());
@@ -253,7 +249,7 @@ public class StockService implements IStockService {
 					.orElseThrow(() -> new IllegalArgumentException(
 							"No se encontró la variedad con id " + perdida.idVariedad()));
 			variedades.put(perdida.idVariedad(), variedad);
-			cambios.merge(perdida.idVariedad(), -perdida.cantidad(), Math::addExact);
+			acumularCantidad(cambios, perdida.idVariedad(), -perdida.cantidad());
 			perdidasValidas.add(perdida);
 		}
 
@@ -297,8 +293,7 @@ public class StockService implements IStockService {
 
 	    List<Stock> stocksBloqueados = stockRepository
 	            .findActivosParaActualizar(disponibilidadDeseada.keySet());
-	    Map<Long, Stock> stockPorVariedad = stocksBloqueados.stream()
-	            .collect(Collectors.toMap(Stock::getIdVariedad, Function.identity()));
+	    Map<Long, Stock> stockPorVariedad = indexarPorVariedad(stocksBloqueados);
 
 	    for (Map.Entry<Long, Integer> ajuste : disponibilidadDeseada.entrySet()) {
 	        Stock stock = stockPorVariedad.get(ajuste.getKey());
@@ -310,6 +305,21 @@ public class StockService implements IStockService {
 	    }
 
 	    stockRepository.saveAll(stocksBloqueados);
+	}
+
+	private void acumularCantidad(Map<Long, Integer> cantidades, Long idVariedad, int cambio) {
+		Integer cantidadActual = cantidades.get(idVariedad);
+		cantidades.put(
+				idVariedad,
+				cantidadActual == null ? cambio : Math.addExact(cantidadActual, cambio));
+	}
+
+	private Map<Long, Stock> indexarPorVariedad(List<Stock> stocks) {
+		Map<Long, Stock> stockPorVariedad = new HashMap<>();
+		for (Stock stock : stocks) {
+			stockPorVariedad.put(stock.getIdVariedad(), stock);
+		}
+		return stockPorVariedad;
 	}
 }
 

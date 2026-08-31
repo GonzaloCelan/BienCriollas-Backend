@@ -2,7 +2,7 @@ package com.bienCriollas.stock.pedido.repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,7 +13,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import com.bienCriollas.stock.pedido.entity.Pedido;
 import com.bienCriollas.stock.pedido.enums.TipoEstado;
@@ -22,12 +21,15 @@ import com.bienCriollas.stock.pedido.enums.TipoVenta;
 import jakarta.persistence.LockModeType;
 
 
-@Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select p from Pedido p where p.idPedido = :idPedido")
 	Optional<Pedido> findByIdParaActualizar(@Param("idPedido") Long idPedido);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select p from Pedido p where p.idPedido in :ids")
+	List<Pedido> findAllByIdParaRegularizar(@Param("ids") Collection<Long> ids);
 
 	List<Pedido> findByEstado(TipoEstado estado);
 	
@@ -109,6 +111,24 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 			);
 	 
 	 Page<Pedido> findByEstadoAndFechaCreacion(TipoEstado estado, LocalDate fechaPedido, Pageable pageable);
+
+	Page<Pedido> findByEstadoInAndFechaCreacionGreaterThanEqualAndFechaCreacionLessThan(
+			Collection<TipoEstado> estados,
+			LocalDate desde,
+			LocalDate hasta,
+			Pageable pageable);
+
+	@Query("""
+			select coalesce(sum(p.totalPedido), 0)
+			from Pedido p
+			where p.estado in :estados
+			  and p.fechaCreacion >= :desde
+			  and p.fechaCreacion < :hasta
+			""")
+	BigDecimal sumarTotalPorEstadosYPeriodo(
+			@Param("estados") Collection<TipoEstado> estados,
+			@Param("desde") LocalDate desde,
+			@Param("hasta") LocalDate hasta);
 
 
 }

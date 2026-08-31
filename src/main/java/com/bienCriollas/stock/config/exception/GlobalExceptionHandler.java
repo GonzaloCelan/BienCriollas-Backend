@@ -6,12 +6,17 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.bienCriollas.stock.pedido.exception.PedidoNoEncontradoException;
 import com.bienCriollas.stock.stock.exception.StockNoDisponibleException;
+import com.bienCriollas.stock.seguridad.exception.CredencialesInvalidasException;
+import com.bienCriollas.stock.seguridad.exception.UsuarioDuplicadoException;
+import com.bienCriollas.stock.seguridad.exception.UsuarioNoEncontradoException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -23,6 +28,46 @@ public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final ZoneId ZONA_ARGENTINA = ZoneId.of("America/Argentina/Buenos_Aires");
+
+    @ExceptionHandler(CredencialesInvalidasException.class)
+    public ResponseEntity<ApiErrorResponse> credencialesInvalidas(
+            CredencialesInvalidasException exception,
+            HttpServletRequest request) {
+        return respuesta(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> accesoDenegado(
+            AccessDeniedException exception,
+            HttpServletRequest request) {
+        return respuesta(HttpStatus.FORBIDDEN,
+                "No tenés permisos para realizar esta operación", request);
+    }
+
+    @ExceptionHandler(UsuarioNoEncontradoException.class)
+    public ResponseEntity<ApiErrorResponse> usuarioNoEncontrado(
+            UsuarioNoEncontradoException exception,
+            HttpServletRequest request) {
+        return respuesta(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(UsuarioDuplicadoException.class)
+    public ResponseEntity<ApiErrorResponse> usuarioDuplicado(
+            UsuarioDuplicadoException exception,
+            HttpServletRequest request) {
+        return respuesta(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> validacionInvalida(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request) {
+        String message = exception.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .orElse("La solicitud contiene datos inválidos");
+        return respuesta(HttpStatus.BAD_REQUEST, message, request);
+    }
 
     @ExceptionHandler(PedidoNoEncontradoException.class)
     public ResponseEntity<ApiErrorResponse> pedidoNoEncontrado(

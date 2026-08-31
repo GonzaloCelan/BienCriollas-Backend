@@ -151,7 +151,7 @@ public class PedidoService implements IPedidoService {
 	    			.orElseThrow(() -> new IllegalArgumentException(
 	    					"No se encontró la variedad con id " + det.idVariedad()));
 	    	variedades.put(det.idVariedad(), variedad);
-	    	cantidades.merge(det.idVariedad(), det.cantidad(), Math::addExact);
+			acumularCantidad(cantidades, det.idVariedad(), det.cantidad());
 	    }
 
 	    TreeMap<Long, Integer> descuentos = new TreeMap<>();
@@ -212,7 +212,7 @@ public class PedidoService implements IPedidoService {
 					.orElseThrow(() -> new IllegalArgumentException(
 							"No se encontró la variedad con id " + detalleDTO.idVariedad()));
 			variedadesNuevas.put(detalleDTO.idVariedad(), variedad);
-			cambiosStock.merge(detalleDTO.idVariedad(), -detalleDTO.cantidad(), Math::addExact);
+			acumularCantidad(cambiosStock, detalleDTO.idVariedad(), -detalleDTO.cantidad());
 		}
 
 		// Se aplica solamente la diferencia neta entre el pedido anterior y el nuevo.
@@ -503,17 +503,22 @@ public class PedidoService implements IPedidoService {
 			throw new RuntimeException("No se encontraron pedidos para la fecha " + fecha + " y estado " + estado);
 		}
 		
-		BigDecimal ingresosEfectivo = pedidos.stream()
-		        .filter(p -> p.getTipoVenta() != TipoVenta.PEDIDOS_YA)  
-		        .filter(p -> p.getTipoPago() == TipoPago.EFECTIVO || p.getTipoPago() == TipoPago.COMBINADO)
-		        .map(Pedido::getMontoEfectivo)
-		        .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-		BigDecimal ingresosTransferencia = pedidos.stream()
-		        .filter(p -> p.getTipoVenta() != TipoVenta.PEDIDOS_YA)  
-		        .filter(p -> p.getTipoPago() == TipoPago.TRANSFERENCIA || p.getTipoPago() == TipoPago.COMBINADO)
-		        .map(Pedido::getMontoTransferencia)
-		        .reduce(BigDecimal.ZERO, BigDecimal::add);
+		BigDecimal ingresosEfectivo = BigDecimal.ZERO;
+		BigDecimal ingresosTransferencia = BigDecimal.ZERO;
+		for (Pedido pedido : pedidos) {
+			if (pedido.getTipoVenta() == TipoVenta.PEDIDOS_YA) {
+				continue;
+			}
+			if (pedido.getTipoPago() == TipoPago.EFECTIVO
+					|| pedido.getTipoPago() == TipoPago.COMBINADO) {
+				ingresosEfectivo = ingresosEfectivo.add(pedido.getMontoEfectivo());
+			}
+			if (pedido.getTipoPago() == TipoPago.TRANSFERENCIA
+					|| pedido.getTipoPago() == TipoPago.COMBINADO) {
+				ingresosTransferencia = ingresosTransferencia.add(
+						pedido.getMontoTransferencia());
+			}
+		}
 		
 		BigDecimal ingresoTotal = ingresosEfectivo.add(ingresosTransferencia);
 		
@@ -528,12 +533,19 @@ public class PedidoService implements IPedidoService {
 	private TreeMap<Long, Integer> cantidadesDelPedido(Pedido pedido) {
 		TreeMap<Long, Integer> cantidades = new TreeMap<>();
 		for (DetallePedido detalle : pedido.getDetalles()) {
-			cantidades.merge(
+			acumularCantidad(
+					cantidades,
 					detalle.getVariedad().getId_variedad(),
-					detalle.getCantidad(),
-					Math::addExact);
+					detalle.getCantidad());
 		}
 		return cantidades;
+	}
+
+	private void acumularCantidad(Map<Long, Integer> cantidades, Long idVariedad, int cambio) {
+		Integer cantidadActual = cantidades.get(idVariedad);
+		cantidades.put(
+				idVariedad,
+				cantidadActual == null ? cambio : Math.addExact(cantidadActual, cambio));
 	}
 
 	private boolean esTransicionPermitida(TipoEstado estadoActual, TipoEstado nuevoEstado) {

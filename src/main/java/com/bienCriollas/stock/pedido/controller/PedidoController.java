@@ -3,7 +3,6 @@ package com.bienCriollas.stock.pedido.controller;
 import java.time.LocalDate;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -29,18 +28,16 @@ import com.bienCriollas.stock.pedido.enums.TipoPago;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("api/v2/pedido")
 @Tag(name = "Pedidos", description = "Operaciones del ciclo completo de pedidos.")
+@RequiredArgsConstructor
 public class PedidoController {
 
-	
-	@Autowired
-	private IPedidoService pedidoService;
-	
-	@Autowired
-	private SimpMessagingTemplate messagingTemplate;
+	private final IPedidoService pedidoService;
+	private final SimpMessagingTemplate messagingTemplate;
 	
 	
 	@PostMapping("/crear")

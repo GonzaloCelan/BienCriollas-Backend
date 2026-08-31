@@ -2,7 +2,6 @@ package com.bienCriollas.stock.stock.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,14 +20,14 @@ import com.bienCriollas.stock.stock.interfaces.IStockService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("api/v2/stock")
 @Tag(name = "Stock", description = "Producción, disponibilidad, ajustes y pérdidas de stock.")
+@RequiredArgsConstructor
 public class StockController {
-	
-	@Autowired
-	private IStockService stockService;
+	private final IStockService stockService;
 	
 	// Endpoint para actualizar stock en lote
 	@PostMapping("/actualizar")
