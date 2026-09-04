@@ -2,22 +2,22 @@ package com.bienCriollas.stock.stock.interfaces;
 
 import java.util.List;
 
-import com.bienCriollas.stock.merma.dto.PerdidaEmpanadaDTO;
-import com.bienCriollas.stock.stock.dto.AjusteStockDTO;
+import com.bienCriollas.stock.waste.dto.EmpanadaLossDTO;
+import com.bienCriollas.stock.stock.dto.StockAdjustmentDTO;
 import com.bienCriollas.stock.stock.dto.StockDTO;
 import com.bienCriollas.stock.stock.dto.StockResponseDTO;
 
 public interface IStockService {
 
-    public Boolean actualizarStock(List<StockDTO> requestList);
+    Boolean updateStock(List<StockDTO> requests);
     
-    public Boolean descontarStockVariedad(Long idVariedad, Integer cantidadADescontar);
+    Boolean decreaseVarietyStock(Long varietyId, Integer quantityToDecrease);
     
-    public List<StockResponseDTO> obtenerTodosLosRegistrosDeStock();
+    List<StockResponseDTO> getAllStockRecords();
     
-    public List<StockResponseDTO> obtenerRegistrosDeStockPorVariedad(Long idVariedad);
+    List<StockResponseDTO> getStockRecordsByVariety(Long varietyId);
     
-    public void registrarPerdidas(List<PerdidaEmpanadaDTO> perdidas);
+    void registerLosses(List<EmpanadaLossDTO> losses);
 
-    public void ajustarStockDisponible(List<AjusteStockDTO> ajustes);
+    void adjustAvailableStock(List<StockAdjustmentDTO> adjustments);
 }

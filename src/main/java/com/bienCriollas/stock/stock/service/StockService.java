@@ -10,18 +10,23 @@ import java.util.TreeMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.bienCriollas.stock.merma.dto.PerdidaEmpanadaDTO;
-import com.bienCriollas.stock.stock.dto.AjusteStockDTO;
+import com.bienCriollas.stock.waste.dto.EmpanadaLossDTO;
+import com.bienCriollas.stock.waste.exception.InvalidWasteException;
+import com.bienCriollas.stock.stock.dto.StockAdjustmentDTO;
 import com.bienCriollas.stock.stock.dto.StockDTO;
 import com.bienCriollas.stock.stock.dto.StockResponseDTO;
 import com.bienCriollas.stock.stock.interfaces.IStockService;
-import com.bienCriollas.stock.merma.entity.MermaEmpanada;
+import com.bienCriollas.stock.waste.entity.EmpanadaWaste;
 import com.bienCriollas.stock.stock.entity.Stock;
-import com.bienCriollas.stock.stock.exception.StockNoDisponibleException;
-import com.bienCriollas.stock.variedad.entity.VariedadEmpanada;
-import com.bienCriollas.stock.merma.repository.MermaRepository;
+import com.bienCriollas.stock.stock.exception.InvalidStockException;
+import com.bienCriollas.stock.stock.exception.StockNotFoundException;
+import com.bienCriollas.stock.stock.exception.InsufficientStockException;
+import com.bienCriollas.stock.variety.entity.EmpanadaVariety;
+import com.bienCriollas.stock.variety.exception.InactiveVarietyException;
+import com.bienCriollas.stock.variety.exception.VarietyNotFoundException;
+import com.bienCriollas.stock.waste.repository.WasteRepository;
 import com.bienCriollas.stock.stock.repository.StockRepository;
-import com.bienCriollas.stock.variedad.repository.VariedadEmpanadaRepository;
+import com.bienCriollas.stock.variety.repository.EmpanadaVarietyRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,80 +37,85 @@ public class StockService implements IStockService {
 	
 
 	private final StockRepository stockRepository;
-	private final VariedadEmpanadaRepository variedadEmpanadaRepository;
-	private final MermaRepository mermaRepository;
+	private final EmpanadaVarietyRepository empanadaVarietyRepository;
+	private final WasteRepository wasteRepository;
 	
 	
 	// Metodo para actualizar stock en lote
 	@Override
 	@Transactional
-	public Boolean actualizarStock(List<StockDTO> requestList) {
+	public Boolean updateStock(List<StockDTO> requests) {
+		if (requests == null || requests.isEmpty()) {
+			throw new InvalidStockException("La lista de stock no puede estar vacía");
+		}
+		for (StockDTO request : requests) {
+			validateNewStock(request);
+		}
 
-	    List<StockDTO> solicitudesOrdenadas = new ArrayList<>(requestList);
-	    solicitudesOrdenadas.sort((primera, segunda) ->
-	            Long.compare(primera.id_variedad(), segunda.id_variedad()));
+	    List<StockDTO> sortedRequests = new ArrayList<>(requests);
+	    sortedRequests.sort((first, second) ->
+	            Long.compare(first.varietyId(), second.varietyId()));
 
-	    for (StockDTO request : solicitudesOrdenadas) {
+	    for (StockDTO request : sortedRequests) {
 
 	        // 1) Validar variedad
-	        VariedadEmpanada variedad = variedadEmpanadaRepository.findById(request.id_variedad())
-	                .orElseThrow(() -> new RuntimeException(
-	                        "No se encontró la variedad con id " + request.id_variedad()));
+	        EmpanadaVariety variety = empanadaVarietyRepository.findById(request.varietyId())
+	                .orElseThrow(() -> new VarietyNotFoundException(request.varietyId()));
 
-	        if (variedad.getActivo() != null && variedad.getActivo() == 0) {
-	            throw new RuntimeException("La variedad con id " + request.id_variedad() + " no está activa");
+	        if (variety.getActive() != null && variety.getActive() == 0) {
+	            throw new InactiveVarietyException(request.varietyId());
 	        }
 
 	        // 2) último stock ACTIVO para esa variedad
-	        Stock ultimoStock = stockRepository
-	                .findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(request.id_variedad(), 1);
+	        Stock latestStock = stockRepository
+	                .findTopByVarietyIdAndActiveOrderByProductionDateDesc(request.varietyId(), 1);
 
-	        Integer stockDisponibleAnterior = 0;
+	        Integer previousAvailableStock = 0;
 
-	        if (ultimoStock != null) {
+	        if (latestStock != null) {
 
 	            // 🟢 CASO NUEVO: ya hay stock para ESA VARIEDAD y ESA FECHA
-	            if (ultimoStock.getFechaElaboracion()
-	                    .equals(request.fecha_elaboracion())) {
+	            if (latestStock.getProductionDate()
+	                    .equals(request.productionDate())) {
 
 	                // sumamos la producción al mismo registro
-	                Integer totalAnterior = ultimoStock.getStockTotal() != null
-	                        ? ultimoStock.getStockTotal()
+	                Integer previousTotal = latestStock.getTotalStock() != null
+	                        ? latestStock.getTotalStock()
 	                        : 0;
 
-	                Integer disponibleAnterior = ultimoStock.getStockDisponible() != null
-	                        ? ultimoStock.getStockDisponible()
+	                Integer previousAvailable = latestStock.getAvailableStock() != null
+	                        ? latestStock.getAvailableStock()
 	                        : 0;
 
-	                ultimoStock.setStockTotal(totalAnterior + request.stock_total());
-	                ultimoStock.setStockDisponible(disponibleAnterior + request.stock_total());
+	                latestStock.setTotalStock(previousTotal + request.totalStock());
+	                latestStock.setAvailableStock(previousAvailable + request.totalStock());
 
-	                stockRepository.save(ultimoStock);
+	                stockRepository.save(latestStock);
 	                // importantísimo: pasamos al siguiente del for, NO insertamos uno nuevo
 	                continue;
 	            }
 
 	            // 🟡 CASO DE SIEMPRE: último stock es de un día anterior
-	            stockDisponibleAnterior = ultimoStock.getStockDisponible();
+	            previousAvailableStock = latestStock.getAvailableStock();
 
 	            // desactivar el anterior
-	            ultimoStock.setActivo(0);
-	            stockRepository.save(ultimoStock);
+	            latestStock.setActive(0);
+	            stockRepository.save(latestStock);
 	        }
 
 	        // 3) nuevo disponible = sobrante + producción nueva (para un día nuevo)
-	        Integer stockDisponibleNuevo = stockDisponibleAnterior + request.stock_total();
+	        Integer newAvailableStock = previousAvailableStock + request.totalStock();
 
-	        // 4) crear registro nuevo (para esa variedad y esa fecha)
-	        Stock nuevoStock = Stock.builder()
-	                .idVariedad(request.id_variedad())
-	                .fechaElaboracion(request.fecha_elaboracion())
-	                .stockTotal(request.stock_total())
-	                .stockDisponible(stockDisponibleNuevo)
-	                .activo(1)
+	        // 4) create registro nuevo (para esa variedad y esa fecha)
+	        Stock newStock = Stock.builder()
+	                .varietyId(request.varietyId())
+	                .productionDate(request.productionDate())
+	                .totalStock(request.totalStock())
+	                .availableStock(newAvailableStock)
+	                .active(1)
 	                .build();
 
-	        stockRepository.save(nuevoStock);
+	        stockRepository.save(newStock);
 	    }
 
 	    // si todo llegó hasta acá sin excepciones, consideramos que fue OK
@@ -116,15 +126,15 @@ public class StockService implements IStockService {
 	// Metodo para descontar stock de una variedad
 	@Override
 	@Transactional
-	public Boolean descontarStockVariedad(Long idVariedad, Integer cantidadADescontar) {
-		if (idVariedad == null) {
-			throw new IllegalArgumentException("El id de la variedad es obligatorio");
+	public Boolean decreaseVarietyStock(Long varietyId, Integer quantityToDecrease) {
+		if (varietyId == null) {
+			throw new InvalidStockException("El id de la variedad es obligatorio");
 		}
-		if (cantidadADescontar == null || cantidadADescontar <= 0) {
-			throw new IllegalArgumentException("La cantidad a descontar debe ser mayor a cero");
+		if (quantityToDecrease == null || quantityToDecrease <= 0) {
+			throw new InvalidStockException("La cantidad a descontar debe ser mayor a cero");
 		}
 
-		ajustarDisponibilidad(Map.of(idVariedad, -cantidadADescontar));
+		adjustAvailability(Map.of(varietyId, -quantityToDecrease));
 
 	    return true;
 	}
@@ -136,46 +146,46 @@ public class StockService implements IStockService {
 	 * perdidas y deadlocks cuando llegan pedidos simultáneos.
 	 */
 	@Transactional
-	public void ajustarDisponibilidad(Map<Long, Integer> cambiosPorVariedad) {
-		if (cambiosPorVariedad == null || cambiosPorVariedad.isEmpty()) {
+	public void adjustAvailability(Map<Long, Integer> changesByVariety) {
+		if (changesByVariety == null || changesByVariety.isEmpty()) {
 			return;
 		}
 
-		TreeMap<Long, Integer> cambiosOrdenados = new TreeMap<>();
-		cambiosPorVariedad.forEach((idVariedad, cambio) -> {
-			if (idVariedad == null) {
-				throw new IllegalArgumentException("El id de la variedad es obligatorio");
+		TreeMap<Long, Integer> sortedChanges = new TreeMap<>();
+		changesByVariety.forEach((varietyId, change) -> {
+			if (varietyId == null) {
+				throw new InvalidStockException("El id de la variedad es obligatorio");
 			}
-			if (cambio != null && cambio != 0) {
-				acumularCantidad(cambiosOrdenados, idVariedad, cambio);
+			if (change != null && change != 0) {
+				accumulateQuantity(sortedChanges, varietyId, change);
 			}
 		});
 
-		if (cambiosOrdenados.isEmpty()) {
+		if (sortedChanges.isEmpty()) {
 			return;
 		}
 
-		List<Stock> stocksBloqueados = stockRepository
-				.findActivosParaActualizar(cambiosOrdenados.keySet());
-		Map<Long, Stock> stockPorVariedad = indexarPorVariedad(stocksBloqueados);
+		List<Stock> lockedStocks = stockRepository
+				.findActiveForUpdate(sortedChanges.keySet());
+		Map<Long, Stock> stockByVariety = indexByVariety(lockedStocks);
 
-		for (Map.Entry<Long, Integer> cambio : cambiosOrdenados.entrySet()) {
-			Stock stock = stockPorVariedad.get(cambio.getKey());
+		for (Map.Entry<Long, Integer> change : sortedChanges.entrySet()) {
+			Stock stock = stockByVariety.get(change.getKey());
 			if (stock == null) {
-				throw new StockNoDisponibleException(
-						"No hay stock activo para la variedad con id " + cambio.getKey());
+				throw new InsufficientStockException(
+						"No hay stock activo para la variedad con id " + change.getKey());
 			}
 
-			int disponibleNuevo = Math.addExact(stock.getStockDisponible(), cambio.getValue());
-			if (disponibleNuevo < 0) {
-				throw new StockNoDisponibleException(
-						"No hay suficiente stock disponible para la variedad con id " + cambio.getKey());
+			int newAvailableStock = Math.addExact(stock.getAvailableStock(), change.getValue());
+			if (newAvailableStock < 0) {
+				throw new InsufficientStockException(
+						"No hay suficiente stock disponible para la variedad con id " + change.getKey());
 			}
 
-			stock.setStockDisponible(disponibleNuevo);
+			stock.setAvailableStock(newAvailableStock);
 		}
 
-		stockRepository.saveAll(stocksBloqueados);
+		stockRepository.saveAll(lockedStocks);
 	}
 	
 	
@@ -183,17 +193,17 @@ public class StockService implements IStockService {
 	
 	@Override
 	@Transactional(readOnly = true)
-	public List<StockResponseDTO> obtenerTodosLosRegistrosDeStock() {
+	public List<StockResponseDTO> getAllStockRecords() {
 		
 		// solo los registros activos (uno por variedad)
-	    List<Stock> stocks = stockRepository.findByActivo(1);
+	    List<Stock> stocks = stockRepository.findByActive(1);
 
 	    return stocks.stream()
 	            .map(s -> new StockResponseDTO(
-	                    s.getIdVariedad(),
-	                    s.getFechaElaboracion(),
-	                    s.getStockTotal(),
-	                    s.getStockDisponible()
+	                    s.getVarietyId(),
+	                    s.getProductionDate(),
+	                    s.getTotalStock(),
+	                    s.getAvailableStock()
 	            ))
 	            .toList();
 		
@@ -204,22 +214,25 @@ public class StockService implements IStockService {
 	
 	@Override
 	@Transactional(readOnly = true)
-	public List<StockResponseDTO> obtenerRegistrosDeStockPorVariedad(Long idVariedad) {
-
-		
-		
-		List<Stock> stock = stockRepository.findByIdVariedad(idVariedad);
-		List<StockResponseDTO> stockResponse = stock.stream()
+	public List<StockResponseDTO> getStockRecordsByVariety(Long varietyId) {
+		if (varietyId == null) {
+			throw new InvalidStockException("El id de la variedad es obligatorio");
+		}
+		List<Stock> stocks = stockRepository.findByVarietyId(varietyId);
+		if (stocks.isEmpty()) {
+			throw new StockNotFoundException(varietyId);
+		}
+		List<StockResponseDTO> response = stocks.stream()
 				.map(s -> new StockResponseDTO(
-						s.getIdVariedad(),
-						s.getFechaElaboracion(),
-						s.getStockTotal(),
-						s.getStockDisponible()
+						s.getVarietyId(),
+						s.getProductionDate(),
+						s.getTotalStock(),
+						s.getAvailableStock()
 						))
 				.toList();
 		
 		
-		return stockResponse;
+		return response;
 	
 	
 }
@@ -228,98 +241,109 @@ public class StockService implements IStockService {
 	//Metodo para registrar empandas perdidas por variedad
 	@Override
 	@Transactional
-    public void registrarPerdidas(List<PerdidaEmpanadaDTO> perdidas) {
-		if (perdidas == null || perdidas.isEmpty()) {
-			throw new IllegalArgumentException("La lista de pérdidas no puede estar vacía");
+    public void registerLosses(List<EmpanadaLossDTO> losses) {
+		if (losses == null || losses.isEmpty()) {
+			throw new InvalidWasteException("La lista de pérdidas no puede estar vacía");
 		}
 
-		TreeMap<Long, Integer> cambios = new TreeMap<>();
-		Map<Long, VariedadEmpanada> variedades = new HashMap<>();
-		List<PerdidaEmpanadaDTO> perdidasValidas = new ArrayList<>();
+		TreeMap<Long, Integer> changes = new TreeMap<>();
+		Map<Long, EmpanadaVariety> varieties = new HashMap<>();
+		List<EmpanadaLossDTO> validLosses = new ArrayList<>();
 
-		for (PerdidaEmpanadaDTO perdida : perdidas) {
-			if (perdida == null || perdida.idVariedad() == null) {
-				throw new IllegalArgumentException("Cada pérdida debe indicar una variedad");
+		for (EmpanadaLossDTO loss : losses) {
+			if (loss == null || loss.varietyId() == null) {
+				throw new InvalidWasteException("Cada pérdida debe indicar una variedad");
 			}
-			if (perdida.cantidad() == null || perdida.cantidad() <= 0) {
-				throw new IllegalArgumentException("La cantidad perdida debe ser mayor a cero");
+			if (loss.quantity() == null || loss.quantity() <= 0) {
+				throw new InvalidWasteException("La cantidad perdida debe ser mayor a cero");
 			}
 
-			VariedadEmpanada variedad = variedadEmpanadaRepository.findById(perdida.idVariedad())
-					.orElseThrow(() -> new IllegalArgumentException(
-							"No se encontró la variedad con id " + perdida.idVariedad()));
-			variedades.put(perdida.idVariedad(), variedad);
-			acumularCantidad(cambios, perdida.idVariedad(), -perdida.cantidad());
-			perdidasValidas.add(perdida);
+			EmpanadaVariety variety = empanadaVarietyRepository.findById(loss.varietyId())
+					.orElseThrow(() -> new VarietyNotFoundException(loss.varietyId()));
+			varieties.put(loss.varietyId(), variety);
+			accumulateQuantity(changes, loss.varietyId(), -loss.quantity());
+			validLosses.add(loss);
 		}
 
-		ajustarDisponibilidad(cambios);
+		adjustAvailability(changes);
 
-		List<MermaEmpanada> registros = perdidasValidas.stream()
-				.map(perdida -> MermaEmpanada.builder()
-						.variedad(variedades.get(perdida.idVariedad()))
-						.fechaRegistro(LocalDateTime.now())
-						.cantidad(perdida.cantidad())
+		List<EmpanadaWaste> records = validLosses.stream()
+				.map(loss -> EmpanadaWaste.builder()
+						.variety(varieties.get(loss.varietyId()))
+						.recordedAt(LocalDateTime.now())
+						.quantity(loss.quantity())
 						.build())
 				.toList();
-		mermaRepository.saveAll(registros);
+		wasteRepository.saveAll(records);
     }
 
 
 	@Override
 	@Transactional
-	public void ajustarStockDisponible(List<AjusteStockDTO> ajustes) {
+	public void adjustAvailableStock(List<StockAdjustmentDTO> adjustments) {
 
-	    if (ajustes == null || ajustes.isEmpty()) {
-	        throw new IllegalArgumentException("La lista de ajustes no puede estar vacía");
+	    if (adjustments == null || adjustments.isEmpty()) {
+	        throw new InvalidStockException("La lista de ajustes no puede estar vacía");
 	    }
 
-	    TreeMap<Long, Integer> disponibilidadDeseada = new TreeMap<>();
+	    TreeMap<Long, Integer> desiredAvailability = new TreeMap<>();
 
-	    for (AjusteStockDTO ajuste : ajustes) {
+	    for (StockAdjustmentDTO adjustment : adjustments) {
 
-	        if (ajuste.idVariedad() == null) {
-	            throw new IllegalArgumentException("El id de la variedad no puede ser nulo");
+	        if (adjustment == null || adjustment.varietyId() == null) {
+	            throw new InvalidStockException("El id de la variedad no puede ser nulo");
 	        }
 
-	        if (ajuste.stockDisponible() == null || ajuste.stockDisponible() < 0) {
-	            throw new IllegalArgumentException(
+	        if (adjustment.availableStock() == null || adjustment.availableStock() < 0) {
+	            throw new InvalidStockException(
 	                "El stock disponible no puede ser nulo ni menor a 0"
 	            );
 	        }
 
-	        disponibilidadDeseada.put(ajuste.idVariedad(), ajuste.stockDisponible());
+	        desiredAvailability.put(adjustment.varietyId(), adjustment.availableStock());
 	    }
 
-	    List<Stock> stocksBloqueados = stockRepository
-	            .findActivosParaActualizar(disponibilidadDeseada.keySet());
-	    Map<Long, Stock> stockPorVariedad = indexarPorVariedad(stocksBloqueados);
+	    List<Stock> lockedStocks = stockRepository
+	            .findActiveForUpdate(desiredAvailability.keySet());
+	    Map<Long, Stock> stockByVariety = indexByVariety(lockedStocks);
 
-	    for (Map.Entry<Long, Integer> ajuste : disponibilidadDeseada.entrySet()) {
-	        Stock stock = stockPorVariedad.get(ajuste.getKey());
+	    for (Map.Entry<Long, Integer> adjustment : desiredAvailability.entrySet()) {
+	        Stock stock = stockByVariety.get(adjustment.getKey());
 	        if (stock == null) {
-	            throw new StockNoDisponibleException(
-	                    "No existe stock activo para la variedad ID: " + ajuste.getKey());
+	            throw new InsufficientStockException(
+	                    "No existe stock activo para la variedad ID: " + adjustment.getKey());
 	        }
-	        stock.setStockDisponible(ajuste.getValue());
+	        stock.setAvailableStock(adjustment.getValue());
 	    }
 
-	    stockRepository.saveAll(stocksBloqueados);
+	    stockRepository.saveAll(lockedStocks);
 	}
 
-	private void acumularCantidad(Map<Long, Integer> cantidades, Long idVariedad, int cambio) {
-		Integer cantidadActual = cantidades.get(idVariedad);
-		cantidades.put(
-				idVariedad,
-				cantidadActual == null ? cambio : Math.addExact(cantidadActual, cambio));
+	private void accumulateQuantity(Map<Long, Integer> quantities, Long varietyId, int change) {
+		Integer currentQuantity = quantities.get(varietyId);
+		quantities.put(
+				varietyId,
+				currentQuantity == null ? change : Math.addExact(currentQuantity, change));
 	}
 
-	private Map<Long, Stock> indexarPorVariedad(List<Stock> stocks) {
-		Map<Long, Stock> stockPorVariedad = new HashMap<>();
-		for (Stock stock : stocks) {
-			stockPorVariedad.put(stock.getIdVariedad(), stock);
+	private void validateNewStock(StockDTO request) {
+		if (request == null || request.varietyId() == null) {
+			throw new InvalidStockException("Cada registro de stock debe indicar una variedad");
 		}
-		return stockPorVariedad;
+		if (request.productionDate() == null) {
+			throw new InvalidStockException("La fecha de elaboración es obligatoria");
+		}
+		if (request.totalStock() == null || request.totalStock() <= 0) {
+			throw new InvalidStockException("El stock total debe ser mayor a cero");
+		}
+	}
+
+	private Map<Long, Stock> indexByVariety(List<Stock> stocks) {
+		Map<Long, Stock> stockByVariety = new HashMap<>();
+		for (Stock stock : stocks) {
+			stockByVariety.put(stock.getVarietyId(), stock);
+		}
+		return stockByVariety;
 	}
 }
 

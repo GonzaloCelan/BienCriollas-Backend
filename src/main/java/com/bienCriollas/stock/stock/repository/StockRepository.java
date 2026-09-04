@@ -17,23 +17,23 @@ import jakarta.persistence.LockModeType;
 public interface StockRepository extends JpaRepository<Stock, Long>{
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	Stock findTopByIdVariedadAndActivoOrderByFechaElaboracionDesc(Long idVariedad, int i);
+	Stock findTopByVarietyIdAndActiveOrderByProductionDateDesc(Long varietyId, int active);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("""
 			select s
 			from Stock s
-			where s.activo = 1
-			  and s.idVariedad in :idsVariedad
-			order by s.idVariedad asc
+			where s.active = 1
+			  and s.varietyId in :varietyIds
+			order by s.varietyId asc
 			""")
-	List<Stock> findActivosParaActualizar(
-			@Param("idsVariedad") Collection<Long> idsVariedad);
+	List<Stock> findActiveForUpdate(
+			@Param("varietyIds") Collection<Long> varietyIds);
 
-	List<Stock> findByActivo(int i);
+	List<Stock> findByActive(int active);
 
-	List<Stock> findByIdVariedad(Long idVariedad);
+	List<Stock> findByVarietyId(Long varietyId);
 	
-	Optional<Stock> findByIdVariedadAndActivo(Long idVariedad, int activo);
+	Optional<Stock> findByVarietyIdAndActive(Long varietyId, int active);
 
 }

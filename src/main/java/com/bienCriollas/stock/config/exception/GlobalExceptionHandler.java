@@ -12,11 +12,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import com.bienCriollas.stock.pedido.exception.PedidoNoEncontradoException;
-import com.bienCriollas.stock.stock.exception.StockNoDisponibleException;
-import com.bienCriollas.stock.seguridad.exception.CredencialesInvalidasException;
-import com.bienCriollas.stock.seguridad.exception.UsuarioDuplicadoException;
-import com.bienCriollas.stock.seguridad.exception.UsuarioNoEncontradoException;
+import com.bienCriollas.stock.expense.exception.InvalidExpenseException;
+import com.bienCriollas.stock.statistics.exception.InvalidStatisticsRangeException;
+import com.bienCriollas.stock.income.exception.InvalidIncomeException;
+import com.bienCriollas.stock.waste.exception.InvalidWasteException;
+import com.bienCriollas.stock.order.exception.OrderOperationNotAllowedException;
+import com.bienCriollas.stock.order.exception.InvalidOrderException;
+import com.bienCriollas.stock.order.exception.OrderNotFoundException;
+import com.bienCriollas.stock.security.exception.UserOperationNotAllowedException;
+import com.bienCriollas.stock.security.exception.InvalidUserException;
+import com.bienCriollas.stock.stock.exception.InvalidStockException;
+import com.bienCriollas.stock.stock.exception.StockNotFoundException;
+import com.bienCriollas.stock.stock.exception.InsufficientStockException;
+import com.bienCriollas.stock.security.exception.InvalidCredentialsException;
+import com.bienCriollas.stock.security.exception.DuplicateUserException;
+import com.bienCriollas.stock.security.exception.UserNotFoundException;
+import com.bienCriollas.stock.variety.exception.InactiveVarietyException;
+import com.bienCriollas.stock.variety.exception.VarietyNotFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -27,101 +39,104 @@ import java.time.ZoneId;
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    private static final ZoneId ZONA_ARGENTINA = ZoneId.of("America/Argentina/Buenos_Aires");
+    private static final ZoneId ARGENTINA_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
-    @ExceptionHandler(CredencialesInvalidasException.class)
-    public ResponseEntity<ApiErrorResponse> credencialesInvalidas(
-            CredencialesInvalidasException exception,
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException exception,
             HttpServletRequest request) {
-        return respuesta(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+        return buildResponse(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiErrorResponse> accesoDenegado(
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
             AccessDeniedException exception,
             HttpServletRequest request) {
-        return respuesta(HttpStatus.FORBIDDEN,
+        return buildResponse(HttpStatus.FORBIDDEN,
                 "No tenés permisos para realizar esta operación", request);
     }
 
-    @ExceptionHandler(UsuarioNoEncontradoException.class)
-    public ResponseEntity<ApiErrorResponse> usuarioNoEncontrado(
-            UsuarioNoEncontradoException exception,
+    @ExceptionHandler({
+            OrderNotFoundException.class,
+            StockNotFoundException.class,
+            UserNotFoundException.class,
+            VarietyNotFoundException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleResourceNotFound(
+            RuntimeException exception,
             HttpServletRequest request) {
-        return respuesta(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+        return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
-    @ExceptionHandler(UsuarioDuplicadoException.class)
-    public ResponseEntity<ApiErrorResponse> usuarioDuplicado(
-            UsuarioDuplicadoException exception,
+    @ExceptionHandler({
+            OrderOperationNotAllowedException.class,
+            UserOperationNotAllowedException.class,
+            InsufficientStockException.class,
+            DuplicateUserException.class,
+            InactiveVarietyException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleBusinessConflict(
+            RuntimeException exception,
             HttpServletRequest request) {
-        return respuesta(HttpStatus.CONFLICT, exception.getMessage(), request);
+        return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiErrorResponse> validacionInvalida(
+    public ResponseEntity<ApiErrorResponse> handleValidationFailure(
             MethodArgumentNotValidException exception,
             HttpServletRequest request) {
         String message = exception.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .orElse("La solicitud contiene datos inválidos");
-        return respuesta(HttpStatus.BAD_REQUEST, message, request);
-    }
-
-    @ExceptionHandler(PedidoNoEncontradoException.class)
-    public ResponseEntity<ApiErrorResponse> pedidoNoEncontrado(
-            PedidoNoEncontradoException exception,
-            HttpServletRequest request) {
-        return respuesta(HttpStatus.NOT_FOUND, exception.getMessage(), request);
-    }
-
-    @ExceptionHandler({StockNoDisponibleException.class, IllegalStateException.class})
-    public ResponseEntity<ApiErrorResponse> conflictoDeNegocio(
-            RuntimeException exception,
-            HttpServletRequest request) {
-        return respuesta(HttpStatus.CONFLICT, exception.getMessage(), request);
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request);
     }
 
     @ExceptionHandler({
-            IllegalArgumentException.class,
+            InvalidExpenseException.class,
+            InvalidIncomeException.class,
+            InvalidWasteException.class,
+            InvalidOrderException.class,
+            InvalidStatisticsRangeException.class,
+            InvalidStockException.class,
+            InvalidUserException.class,
             MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class
     })
-    public ResponseEntity<ApiErrorResponse> solicitudInvalida(
+    public ResponseEntity<ApiErrorResponse> handleInvalidRequest(
             Exception exception,
             HttpServletRequest request) {
-        return respuesta(HttpStatus.BAD_REQUEST, mensajeSeguro(exception), request);
+        return buildResponse(HttpStatus.BAD_REQUEST, safeMessage(exception), request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiErrorResponse> conflictoDeIntegridad(
+    public ResponseEntity<ApiErrorResponse> handleDataConflict(
             DataIntegrityViolationException exception,
             HttpServletRequest request) {
         LOGGER.warn("Conflicto de integridad en {}", request.getRequestURI(), exception);
-        return respuesta(
+        return buildResponse(
                 HttpStatus.CONFLICT,
                 "La operación entra en conflicto con datos existentes",
                 request);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> errorInterno(
+    public ResponseEntity<ApiErrorResponse> handleUnexpectedError(
             Exception exception,
             HttpServletRequest request) {
         LOGGER.error("Error interno en {}", request.getRequestURI(), exception);
-        return respuesta(
+        return buildResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "Ocurrió un error interno. Intentá nuevamente.",
                 request);
     }
 
-    private ResponseEntity<ApiErrorResponse> respuesta(
+    private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,
             String message,
             HttpServletRequest request) {
         ApiErrorResponse body = new ApiErrorResponse(
-                OffsetDateTime.now(ZONA_ARGENTINA),
+                OffsetDateTime.now(ARGENTINA_ZONE),
                 status.value(),
                 status.getReasonPhrase(),
                 message,
@@ -129,7 +144,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
-    private String mensajeSeguro(Exception exception) {
+    private String safeMessage(Exception exception) {
         if (exception instanceof HttpMessageNotReadableException) {
             return "El cuerpo JSON es inválido o contiene valores incorrectos";
         }

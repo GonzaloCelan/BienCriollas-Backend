@@ -30,12 +30,12 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
-import com.bienCriollas.stock.seguridad.config.JwtUsuarioValidator;
-import com.bienCriollas.stock.seguridad.config.RestAccessDeniedHandler;
-import com.bienCriollas.stock.seguridad.config.RestAuthenticationEntryPoint;
-import com.bienCriollas.stock.seguridad.config.SecurityProperties;
-import com.bienCriollas.stock.seguridad.repository.UsuarioRepository;
-import com.bienCriollas.stock.seguridad.service.UsuarioService;
+import com.bienCriollas.stock.security.config.JwtUserValidator;
+import com.bienCriollas.stock.security.config.RestAccessDeniedHandler;
+import com.bienCriollas.stock.security.config.RestAuthenticationEntryPoint;
+import com.bienCriollas.stock.security.config.SecurityProperties;
+import com.bienCriollas.stock.security.repository.UserRepository;
+import com.bienCriollas.stock.security.service.UserService;
 
 @Configuration
 @EnableWebSecurity
@@ -88,9 +88,9 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationManager authenticationManager(
-            UsuarioService usuarioService,
+            UserService userService,
             PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(usuarioService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userService);
         provider.setPasswordEncoder(passwordEncoder);
         return new ProviderManager(provider);
     }
@@ -103,13 +103,13 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(SecurityProperties properties, UsuarioRepository usuarioRepository) {
+    public JwtDecoder jwtDecoder(SecurityProperties properties, UserRepository userRepository) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey(properties))
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(properties.getIssuer()),
-                new JwtUsuarioValidator(usuarioRepository)));
+                new JwtUserValidator(userRepository)));
         return decoder;
     }
 

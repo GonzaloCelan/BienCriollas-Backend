@@ -58,14 +58,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 StompHeaderAccessor accessor = StompHeaderAccessor.getAccessor(
                         message, StompHeaderAccessor.class);
                 if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-                    accessor.setUser(autenticar(accessor.getFirstNativeHeader("Authorization")));
+                    accessor.setUser(authenticate(accessor.getFirstNativeHeader("Authorization")));
                 }
                 return message;
             }
         });
     }
 
-    private Authentication autenticar(String authorization) {
+    private Authentication authenticate(String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new AccessDeniedException("Se requiere autenticación para conectar al WebSocket");
         }

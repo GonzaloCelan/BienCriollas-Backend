@@ -15,11 +15,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.bienCriollas.stock.merma.repository.MermaRepository;
+import com.bienCriollas.stock.waste.repository.WasteRepository;
 import com.bienCriollas.stock.stock.entity.Stock;
-import com.bienCriollas.stock.stock.exception.StockNoDisponibleException;
+import com.bienCriollas.stock.stock.exception.InsufficientStockException;
 import com.bienCriollas.stock.stock.repository.StockRepository;
-import com.bienCriollas.stock.variedad.repository.VariedadEmpanadaRepository;
+import com.bienCriollas.stock.variety.repository.EmpanadaVarietyRepository;
 
 @ExtendWith(MockitoExtension.class)
 class StockServiceTest {
@@ -28,38 +28,38 @@ class StockServiceTest {
     private StockRepository stockRepository;
 
     @Mock
-    private VariedadEmpanadaRepository variedadEmpanadaRepository;
+    private EmpanadaVarietyRepository empanadaVarietyRepository;
 
     @Mock
-    private MermaRepository mermaRepository;
+    private WasteRepository wasteRepository;
 
     @InjectMocks
     private StockService stockService;
 
     @Test
-    void ajustaVariasVariedadesBajoUnMismoBloqueo() {
-        Stock carne = Stock.builder().idVariedad(1L).stockDisponible(100).activo(1).build();
-        Stock pollo = Stock.builder().idVariedad(2L).stockDisponible(20).activo(1).build();
-        when(stockRepository.findActivosParaActualizar(anyCollection()))
-                .thenReturn(List.of(carne, pollo));
+    void adjustsSeveralVarietiesUnderTheSameLock() {
+        Stock beef = Stock.builder().varietyId(1L).availableStock(100).active(1).build();
+        Stock chicken = Stock.builder().varietyId(2L).availableStock(20).active(1).build();
+        when(stockRepository.findActiveForUpdate(anyCollection()))
+                .thenReturn(List.of(beef, chicken));
 
-        stockService.ajustarDisponibilidad(Map.of(1L, -40, 2L, 5));
+        stockService.adjustAvailability(Map.of(1L, -40, 2L, 5));
 
-        assertEquals(60, carne.getStockDisponible());
-        assertEquals(25, pollo.getStockDisponible());
-        verify(stockRepository).saveAll(List.of(carne, pollo));
+        assertEquals(60, beef.getAvailableStock());
+        assertEquals(25, chicken.getAvailableStock());
+        verify(stockRepository).saveAll(List.of(beef, chicken));
     }
 
     @Test
-    void rechazaElDescuentoCuandoNoAlcanzaElStock() {
-        Stock carne = Stock.builder().idVariedad(1L).stockDisponible(9).activo(1).build();
-        when(stockRepository.findActivosParaActualizar(anyCollection()))
-                .thenReturn(List.of(carne));
+    void rejectsDecreaseWhenStockIsInsufficient() {
+        Stock beef = Stock.builder().varietyId(1L).availableStock(9).active(1).build();
+        when(stockRepository.findActiveForUpdate(anyCollection()))
+                .thenReturn(List.of(beef));
 
         assertThrows(
-                StockNoDisponibleException.class,
-                () -> stockService.ajustarDisponibilidad(Map.of(1L, -10)));
+                InsufficientStockException.class,
+                () -> stockService.adjustAvailability(Map.of(1L, -10)));
 
-        assertEquals(9, carne.getStockDisponible());
+        assertEquals(9, beef.getAvailableStock());
     }
 }

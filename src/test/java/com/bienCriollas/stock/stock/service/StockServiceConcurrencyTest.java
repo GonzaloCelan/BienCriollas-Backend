@@ -35,7 +35,7 @@ import com.bienCriollas.stock.stock.repository.StockRepository;
         })
 class StockServiceConcurrencyTest {
 
-    private static final int PEDIDOS_SIMULTANEOS = 40;
+    private static final int CONCURRENT_ORDERS = 40;
 
     @Autowired
     private StockService stockService;
@@ -46,80 +46,80 @@ class StockServiceConcurrencyTest {
     private ExecutorService executor;
 
     @BeforeEach
-    void prepararStock() {
+    void prepareStock() {
         stockRepository.deleteAll();
         stockRepository.saveAndFlush(Stock.builder()
-                .idVariedad(1L)
-                .fechaElaboracion(LocalDate.now())
-                .stockTotal(100)
-                .stockDisponible(100)
-                .activo(1)
+                .varietyId(1L)
+                .productionDate(LocalDate.now())
+                .totalStock(100)
+                .availableStock(100)
+                .active(1)
                 .build());
         stockRepository.saveAndFlush(Stock.builder()
-                .idVariedad(2L)
-                .fechaElaboracion(LocalDate.now())
-                .stockTotal(100)
-                .stockDisponible(100)
-                .activo(1)
+                .varietyId(2L)
+                .productionDate(LocalDate.now())
+                .totalStock(100)
+                .availableStock(100)
+                .active(1)
                 .build());
-        executor = Executors.newFixedThreadPool(PEDIDOS_SIMULTANEOS);
+        executor = Executors.newFixedThreadPool(CONCURRENT_ORDERS);
     }
 
     @AfterEach
-    void cerrarExecutor() {
+    void closeExecutor() {
         executor.shutdownNow();
     }
 
     @Test
-    void cuarentaDescuentosSimultaneosDescuentanCuarentaUnidades() throws Exception {
-        CountDownLatch listos = new CountDownLatch(PEDIDOS_SIMULTANEOS);
-        CountDownLatch comenzar = new CountDownLatch(1);
-        List<Future<Boolean>> resultados = new ArrayList<>();
+    void fortyConcurrentDecreasesRemoveFortyUnits() throws Exception {
+        CountDownLatch ready = new CountDownLatch(CONCURRENT_ORDERS);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Boolean>> results = new ArrayList<>();
 
-        for (int i = 0; i < PEDIDOS_SIMULTANEOS; i++) {
-            resultados.add(executor.submit(() -> {
-                listos.countDown();
-                comenzar.await();
-                return stockService.descontarStockVariedad(1L, 1);
+        for (int i = 0; i < CONCURRENT_ORDERS; i++) {
+            results.add(executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return stockService.decreaseVarietyStock(1L, 1);
             }));
         }
 
-        assertTrue(listos.await(10, TimeUnit.SECONDS));
-        comenzar.countDown();
+        assertTrue(ready.await(10, TimeUnit.SECONDS));
+        start.countDown();
 
-        for (Future<Boolean> resultado : resultados) {
-            assertTrue(resultado.get(30, TimeUnit.SECONDS));
+        for (Future<Boolean> result : results) {
+            assertTrue(result.get(30, TimeUnit.SECONDS));
         }
 
-        Stock stockFinal = stockRepository.findByIdVariedadAndActivo(1L, 1).orElseThrow();
-        assertEquals(60, stockFinal.getStockDisponible());
+        Stock finalStock = stockRepository.findByVarietyIdAndActive(1L, 1).orElseThrow();
+        assertEquals(60, finalStock.getAvailableStock());
     }
 
     @Test
-    void cuarentaEdicionesSimultaneasActualizanDosVariedadesSinDeadlocks() throws Exception {
-        CountDownLatch listos = new CountDownLatch(PEDIDOS_SIMULTANEOS);
-        CountDownLatch comenzar = new CountDownLatch(1);
-        List<Future<Boolean>> resultados = new ArrayList<>();
+    void fortyConcurrentEditsUpdateTwoVarietiesWithoutDeadlocks() throws Exception {
+        CountDownLatch ready = new CountDownLatch(CONCURRENT_ORDERS);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Boolean>> results = new ArrayList<>();
 
-        for (int i = 0; i < PEDIDOS_SIMULTANEOS; i++) {
-            resultados.add(executor.submit(() -> {
-                listos.countDown();
-                comenzar.await();
-                stockService.ajustarDisponibilidad(Map.of(1L, 1, 2L, -1));
+        for (int i = 0; i < CONCURRENT_ORDERS; i++) {
+            results.add(executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                stockService.adjustAvailability(Map.of(1L, 1, 2L, -1));
                 return true;
             }));
         }
 
-        assertTrue(listos.await(10, TimeUnit.SECONDS));
-        comenzar.countDown();
+        assertTrue(ready.await(10, TimeUnit.SECONDS));
+        start.countDown();
 
-        for (Future<Boolean> resultado : resultados) {
-            assertTrue(resultado.get(30, TimeUnit.SECONDS));
+        for (Future<Boolean> result : results) {
+            assertTrue(result.get(30, TimeUnit.SECONDS));
         }
 
-        Stock stockDevuelto = stockRepository.findByIdVariedadAndActivo(1L, 1).orElseThrow();
-        Stock stockDescontado = stockRepository.findByIdVariedadAndActivo(2L, 1).orElseThrow();
-        assertEquals(140, stockDevuelto.getStockDisponible());
-        assertEquals(60, stockDescontado.getStockDisponible());
+        Stock returnedStock = stockRepository.findByVarietyIdAndActive(1L, 1).orElseThrow();
+        Stock decreasedStock = stockRepository.findByVarietyIdAndActive(2L, 1).orElseThrow();
+        assertEquals(140, returnedStock.getAvailableStock());
+        assertEquals(60, decreasedStock.getAvailableStock());
     }
 }

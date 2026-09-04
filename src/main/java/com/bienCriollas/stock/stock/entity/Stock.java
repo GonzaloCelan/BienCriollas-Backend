@@ -28,22 +28,22 @@ public class Stock {
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_stock")
-    private Long idStock;
+    private Long stockId;
 
     @Column(name = "id_variedad", nullable = false)
-    private Long idVariedad;
+    private Long varietyId;
 
     @Column(name = "fecha_elaboracion", nullable = false)
-    private LocalDate fechaElaboracion;
+    private LocalDate productionDate;
 
     @Column(name = "stock_total", nullable = false)
-    private Integer stockTotal;
+    private Integer totalStock;
 
     @Column(name = "stock_disponible", nullable = false)
-    private Integer stockDisponible;
+    private Integer availableStock;
 
     @Column(name = "activo", nullable = false)
-    private Integer activo;
+    private Integer active;
 	
 	
 }
