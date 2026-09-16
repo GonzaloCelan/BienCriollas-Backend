@@ -94,6 +94,15 @@ public class Order {
     @Column(name = "fecha_pedido",nullable = true)
     @JsonProperty("fechaCreacion")
     private LocalDate creationDate;
+
+    @Column(name = "fecha_entrega")
+    @JsonProperty("fechaEntrega")
+    private LocalDate deliveryDate;
+
+    @Column(name = "stock_discounted", nullable = false)
+    @JsonProperty("stockDiscounted")
+    @Builder.Default
+    private Boolean stockDiscounted = true;
     
     
     // --- Detalle de pedido ---

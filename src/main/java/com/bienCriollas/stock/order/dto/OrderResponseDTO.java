@@ -1,6 +1,7 @@
 package com.bienCriollas.stock.order.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 import com.bienCriollas.stock.order.enums.OrderStatus;
@@ -14,7 +15,12 @@ public record OrderResponseDTO(
         @JsonProperty("numeroPedidoPedidosYa") String pedidosYaOrderNumber,
         @JsonProperty("horaEntrega") LocalTime deliveryTime,
         @JsonProperty("totalPedido") BigDecimal orderTotal,
-        @JsonProperty("estadoPedido") OrderStatus orderStatus
+        @JsonProperty("estadoPedido") OrderStatus orderStatus,
+        @JsonProperty("fechaPedido") LocalDate creationDate,
+        @JsonProperty("fechaEntrega") LocalDate deliveryDate,
+        @JsonProperty("scheduled") Boolean scheduled,
+        @JsonProperty("deliveryToday") Boolean deliveryToday,
+        @JsonProperty("stockDiscounted") Boolean stockDiscounted
 
         )
 

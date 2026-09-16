@@ -10,6 +10,8 @@ import com.bienCriollas.stock.income.dto.DailyIncomeDTO;
 import com.bienCriollas.stock.order.dto.OrderDetailResponseDTO;
 import com.bienCriollas.stock.order.dto.OrderRequestDTO;
 import com.bienCriollas.stock.order.dto.OrderResponseDTO;
+import com.bienCriollas.stock.order.dto.ScheduledOrderSummaryDTO;
+import com.bienCriollas.stock.order.dto.CommittedStockDTO;
 import com.bienCriollas.stock.order.enums.OrderStatus;
 import com.bienCriollas.stock.order.enums.PaymentType;
 
@@ -39,4 +41,10 @@ public interface IOrderService {
 
       public Page<OrderResponseDTO> getPagedOrdersByStatusAndDate(OrderStatus status, LocalDate date, int page,
             int size);
+
+      List<OrderResponseDTO> getScheduledOrders(LocalDate deliveryDate);
+
+      ScheduledOrderSummaryDTO getScheduledSummary();
+
+      List<CommittedStockDTO> getCommittedStock();
     }

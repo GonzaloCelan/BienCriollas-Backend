@@ -110,7 +110,56 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                 @Param("hasta") LocalDate to
             );
 
-     Page<Order> findByStatusAndCreationDate(OrderStatus status, LocalDate orderDate, Pageable pageable);
+    @Query("""
+            select o
+            from Order o
+            where o.status = :status
+              and (
+                    o.deliveryDate = :orderDate
+                    or (
+                        o.creationDate = :orderDate
+                        and (o.deliveryDate is null or o.deliveryDate <= :orderDate)
+                    )
+                  )
+            """)
+    Page<Order> findDailyOrdersByStatus(
+            @Param("status") OrderStatus status,
+            @Param("orderDate") LocalDate orderDate,
+            Pageable pageable);
+
+    @Query("""
+            select o
+            from Order o
+            where o.deliveryDate = :date
+               or (
+                    o.creationDate = :date
+                    and (o.deliveryDate is null or o.deliveryDate <= :date)
+                  )
+            order by o.deliveryTime asc, o.orderId desc
+            """)
+    List<Order> findDailyOrders(@Param("date") LocalDate date);
+
+    @Query("""
+            select o
+            from Order o
+            where o.deliveryDate > :today
+              and o.status <> :cancelledStatus
+            order by o.deliveryDate asc, o.deliveryTime asc, o.orderId asc
+            """)
+    List<Order> findScheduledOrdersAfter(
+            @Param("today") LocalDate today,
+            @Param("cancelledStatus") OrderStatus cancelledStatus);
+
+    @Query("""
+            select o
+            from Order o
+            where o.deliveryDate = :deliveryDate
+              and o.status <> :cancelledStatus
+            order by o.deliveryTime asc, o.orderId asc
+            """)
+    List<Order> findScheduledOrdersOn(
+            @Param("deliveryDate") LocalDate deliveryDate,
+            @Param("cancelledStatus") OrderStatus cancelledStatus);
 
     Page<Order> findByStatusInAndCreationDateGreaterThanEqualAndCreationDateLessThan(
             Collection<OrderStatus> statuses,

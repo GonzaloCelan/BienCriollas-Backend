@@ -10,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.bienCriollas.stock.expense.exception.InvalidExpenseException;
@@ -31,6 +32,31 @@ import com.bienCriollas.stock.variety.exception.InactiveVarietyException;
 import com.bienCriollas.stock.variety.exception.VarietyNotFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import com.bienCriollas.stock.production.ingredient.exception.IngredientNotFoundException;
+import com.bienCriollas.stock.production.ingredient.exception.IngredientAlreadyExistsException;
+import com.bienCriollas.stock.production.ingredient.exception.IngredientInactiveException;
+import com.bienCriollas.stock.production.ingredient.exception.InsufficientIngredientStockException;
+import com.bienCriollas.stock.production.ingredient.exception.InvalidIngredientException;
+import com.bienCriollas.stock.production.recipe.exception.RecipeNotFoundException;
+import com.bienCriollas.stock.production.recipe.exception.RecipeAlreadyExistsException;
+import com.bienCriollas.stock.production.recipe.exception.RecipeIngredientDuplicatedException;
+import com.bienCriollas.stock.production.recipe.exception.InactiveIngredientForRecipeException;
+import com.bienCriollas.stock.production.recipe.exception.RecipeWithoutIngredientsException;
+import com.bienCriollas.stock.production.recipe.exception.InvalidRecipeYieldException;
+import com.bienCriollas.stock.production.recipe.exception.InvalidRecipeException;
+import com.bienCriollas.stock.production.process.exception.ProductionProcessNotFoundException;
+import com.bienCriollas.stock.production.process.exception.ProcessAlreadyExistsException;
+import com.bienCriollas.stock.production.process.exception.ProcessWithoutStepsException;
+import com.bienCriollas.stock.production.process.exception.InvalidProcessReferenceYieldException;
+import com.bienCriollas.stock.production.process.exception.InvalidProcessStepException;
+import com.bienCriollas.stock.production.process.exception.InvalidProductionProcessException;
+import com.bienCriollas.stock.production.exception.ActiveRecipeRequiredException;
+import com.bienCriollas.stock.production.exception.InvalidProductionException;
+import com.bienCriollas.stock.production.exception.InvalidProductionStateException;
+import com.bienCriollas.stock.production.exception.ProductionAlreadyFinalizedException;
+import com.bienCriollas.stock.production.exception.ProductionNotFoundException;
+import com.bienCriollas.stock.production.analytics.exception.InvalidProductionAnalyticsException;
+import com.bienCriollas.stock.production.analytics.exception.ProductionAnalyticsNotFoundException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -58,6 +84,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             OrderNotFoundException.class,
+            IngredientNotFoundException.class,
+            RecipeNotFoundException.class,
+            ProductionProcessNotFoundException.class,
+            ProductionNotFoundException.class,
+            ProductionAnalyticsNotFoundException.class,
             StockNotFoundException.class,
             UserNotFoundException.class,
             VarietyNotFoundException.class
@@ -70,6 +101,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             OrderOperationNotAllowedException.class,
+            IngredientAlreadyExistsException.class,
+            RecipeAlreadyExistsException.class,
+            ProcessAlreadyExistsException.class,
+            ActiveRecipeRequiredException.class,
+            ProductionAlreadyFinalizedException.class,
+            InvalidProductionStateException.class,
+            RecipeIngredientDuplicatedException.class,
+            InactiveIngredientForRecipeException.class,
+            IngredientInactiveException.class,
+            InsufficientIngredientStockException.class,
             UserOperationNotAllowedException.class,
             InsufficientStockException.class,
             DuplicateUserException.class,
@@ -94,6 +135,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             InvalidExpenseException.class,
+            InvalidIngredientException.class,
+            InvalidRecipeException.class,
+            InvalidRecipeYieldException.class,
+            RecipeWithoutIngredientsException.class,
+            InvalidProductionProcessException.class,
+            InvalidProductionException.class,
+            InvalidProductionAnalyticsException.class,
+            InvalidProcessReferenceYieldException.class,
+            InvalidProcessStepException.class,
+            ProcessWithoutStepsException.class,
             InvalidIncomeException.class,
             InvalidWasteException.class,
             InvalidOrderException.class,
@@ -101,6 +152,7 @@ public class GlobalExceptionHandler {
             InvalidStockException.class,
             InvalidUserException.class,
             MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class,
             HttpMessageNotReadableException.class
     })
     public ResponseEntity<ApiErrorResponse> handleInvalidRequest(

@@ -218,7 +218,11 @@ La configuración general se encuentra en `config/OpenApiConfig.java`. Springdoc
 
 ## Resumen de endpoints
 
-Todas las rutas REST utilizan la versión `/api/v2`.
+Los módulos existentes utilizan `/api/v2`. Producción expone Ingredientes en
+`/api/v1/ingredients`, Recetas en `/api/v1/recipes`, Procesos estándar en
+`/api/v1/processes` y Producción real en `/api/v1/productions`; ver
+[Ingredientes](docs/ingredients.md), [Recetas](docs/recipes.md),
+[Procesos](docs/processes.md) y [Producción real](docs/productions.md).
 
 ### Pedidos — `/api/v2/pedido`
 

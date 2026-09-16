@@ -20,6 +20,8 @@ import com.bienCriollas.stock.order.dto.OrderDetailResponseDTO;
 import com.bienCriollas.stock.order.dto.OrderEventDTO;
 import com.bienCriollas.stock.order.dto.OrderRequestDTO;
 import com.bienCriollas.stock.order.dto.OrderResponseDTO;
+import com.bienCriollas.stock.order.dto.ScheduledOrderSummaryDTO;
+import com.bienCriollas.stock.order.dto.CommittedStockDTO;
 import com.bienCriollas.stock.order.dto.UpdatePaymentRequestDTO;
 import com.bienCriollas.stock.order.interfaces.IOrderService;
 import com.bienCriollas.stock.order.enums.OrderStatus;
@@ -42,7 +44,7 @@ public class OrderController {
 
 
     @PostMapping("/crear")
-    @Operation(summary = "Crear un pedido", description = "Registra el pedido, descuenta el stock y publica un evento WebSocket.")
+    @Operation(summary = "Crear un pedido", description = "Registra el pedido. Si fechaEntrega es futura, reserva las unidades sin descontar stock físico.")
     public ResponseEntity<OrderResponseDTO> createOrder(@RequestBody OrderRequestDTO order) {
         OrderResponseDTO response = orderService.createOrder(order);
 
@@ -167,6 +169,27 @@ public class OrderController {
             LocalDate date) {
 
         return ResponseEntity.ok(orderService.getOrdersByDate(date));
+    }
+
+    @GetMapping("/programados")
+    @Operation(summary = "Listar pedidos programados", description = "Lista pedidos futuros o, si se informa fecha, los pedidos no cancelados de ese día.")
+    public ResponseEntity<List<OrderResponseDTO>> getScheduledOrders(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fecha) {
+        return ResponseEntity.ok(orderService.getScheduledOrders(fecha));
+    }
+
+    @GetMapping("/programados/resumen")
+    @Operation(summary = "Obtener resumen de pedidos programados")
+    public ResponseEntity<ScheduledOrderSummaryDTO> getScheduledSummary() {
+        return ResponseEntity.ok(orderService.getScheduledSummary());
+    }
+
+    @GetMapping("/programados/stock-comprometido")
+    @Operation(summary = "Consultar stock comprometido", description = "Calcula las unidades reservadas por pedidos futuros sin modificar el stock físico.")
+    public ResponseEntity<List<CommittedStockDTO>> getCommittedStock() {
+        return ResponseEntity.ok(orderService.getCommittedStock());
     }
 
 

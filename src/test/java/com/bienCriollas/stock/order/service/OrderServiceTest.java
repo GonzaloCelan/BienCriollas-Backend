@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.bienCriollas.stock.order.dto.OrderDetailRequestDTO;
 import com.bienCriollas.stock.order.dto.OrderRequestDTO;
 import com.bienCriollas.stock.order.dto.OrderResponseDTO;
+import com.bienCriollas.stock.order.dto.ScheduledOrderSummaryDTO;
 import com.bienCriollas.stock.order.entity.OrderDetail;
 import com.bienCriollas.stock.order.entity.Order;
 import com.bienCriollas.stock.order.enums.OrderStatus;
@@ -31,9 +35,11 @@ import com.bienCriollas.stock.order.enums.PaymentType;
 import com.bienCriollas.stock.order.enums.SaleType;
 import com.bienCriollas.stock.order.exception.OrderOperationNotAllowedException;
 import com.bienCriollas.stock.order.exception.OrderNotFoundException;
+import com.bienCriollas.stock.order.exception.InvalidOrderException;
 import com.bienCriollas.stock.order.repository.OrderDetailRepository;
 import com.bienCriollas.stock.order.repository.OrderRepository;
 import com.bienCriollas.stock.stock.service.StockService;
+import com.bienCriollas.stock.stock.repository.StockRepository;
 import com.bienCriollas.stock.variety.entity.EmpanadaVariety;
 import com.bienCriollas.stock.variety.repository.EmpanadaVarietyRepository;
 
@@ -52,6 +58,9 @@ class OrderServiceTest {
     @Mock
     private EmpanadaVarietyRepository empanadaVarietyRepository;
 
+    @Mock
+    private StockRepository stockRepository;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -63,7 +72,7 @@ class OrderServiceTest {
                 .name("Pollo")
                 .build();
         OrderRequestDTO request = new OrderRequestDTO(
-                "Cliente",
+                "   JULIETA    VARGAS ",
                 "PARTICULAR",
                 "EFECTIVO",
                 null,
@@ -83,8 +92,132 @@ class OrderServiceTest {
         OrderResponseDTO response = orderService.createOrder(request);
 
         assertEquals(deliveryTime, response.deliveryTime());
+        assertEquals("Julieta Vargas", response.customer());
         verify(orderRepository).save(any(Order.class));
         verify(stockService).adjustAvailability(eq(Map.of(2L, -6)));
+    }
+
+    @Test
+    void createFutureOrderKeepsPhysicalStockAndMarksItAsScheduled() {
+        LocalDate deliveryDate = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusDays(3);
+        EmpanadaVariety variety = EmpanadaVariety.builder()
+                .varietyId(1L)
+                .name("Carne")
+                .build();
+        OrderRequestDTO request = new OrderRequestDTO(
+                "Juan Perez",
+                "PARTICULAR",
+                "EFECTIVO",
+                null,
+                LocalTime.of(21, 0),
+                null,
+                null,
+                new BigDecimal("18000"),
+                List.of(new OrderDetailRequestDTO(1L, 12)),
+                deliveryDate);
+
+        when(empanadaVarietyRepository.findById(1L)).thenReturn(Optional.of(variety));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            order.setOrderId(500L);
+            return order;
+        });
+
+        OrderResponseDTO response = orderService.createOrder(request);
+
+        assertEquals(deliveryDate, response.deliveryDate());
+        assertEquals(true, response.scheduled());
+        assertEquals(false, response.deliveryToday());
+        assertEquals(false, response.stockDiscounted());
+        verify(stockService, never()).adjustAvailability(any());
+    }
+
+    @Test
+    void preparingScheduledOrderDiscountsStockOnlyOnce() {
+        EmpanadaVariety variety = EmpanadaVariety.builder()
+                .varietyId(1L)
+                .name("Carne")
+                .build();
+        Order order = Order.builder()
+                .orderId(500L)
+                .status(OrderStatus.PENDIENTE)
+                .stockDiscounted(false)
+                .details(new ArrayList<>())
+                .build();
+        order.getDetails().add(OrderDetail.builder()
+                .order(order)
+                .variety(variety)
+                .quantity(12)
+                .build());
+        when(orderRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(order));
+
+        orderService.updateOrderStatus(500L, OrderStatus.PREPARADO);
+        orderService.updateOrderStatus(500L, OrderStatus.PREPARADO);
+
+        assertEquals(true, order.getStockDiscounted());
+        verify(stockService, times(1)).adjustAvailability(eq(Map.of(1L, -12)));
+        verify(orderRepository, times(1)).save(order);
+    }
+
+    @Test
+    void cancellingUndiscountedScheduledOrderDoesNotReturnStock() {
+        Order order = Order.builder()
+                .orderId(500L)
+                .status(OrderStatus.PENDIENTE)
+                .stockDiscounted(false)
+                .details(new ArrayList<>())
+                .build();
+        when(orderRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(order));
+
+        orderService.updateOrderStatus(500L, OrderStatus.CANCELADO);
+
+        assertEquals(OrderStatus.CANCELADO, order.getStatus());
+        verify(stockService, never()).adjustAvailability(any());
+    }
+
+    @Test
+    void createOrderRejectsPastDeliveryDate() {
+        LocalDate yesterday = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).minusDays(1);
+        OrderRequestDTO request = new OrderRequestDTO(
+                "Juan Perez",
+                "PARTICULAR",
+                "EFECTIVO",
+                null,
+                LocalTime.of(21, 0),
+                null,
+                null,
+                new BigDecimal("18000"),
+                List.of(new OrderDetailRequestDTO(1L, 12)),
+                yesterday);
+
+        assertThrows(InvalidOrderException.class, () -> orderService.createOrder(request));
+
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(stockService, never()).adjustAvailability(any());
+    }
+
+    @Test
+    void scheduledSummaryExcludesDeliveredOrders() {
+        LocalDate today = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+        Order pending = Order.builder().status(OrderStatus.PENDIENTE).build();
+        Order prepared = Order.builder().status(OrderStatus.PREPARADO).build();
+        Order delivered = Order.builder().status(OrderStatus.ENTREGADO).build();
+
+        when(orderRepository.findScheduledOrdersOn(today, OrderStatus.CANCELADO))
+                .thenReturn(List.of(pending, delivered));
+        when(orderRepository.findScheduledOrdersAfter(today, OrderStatus.CANCELADO))
+                .thenReturn(List.of(pending, prepared, delivered));
+        when(orderRepository.findScheduledOrdersOn(today.plusDays(1), OrderStatus.CANCELADO))
+                .thenReturn(List.of(prepared, delivered));
+        when(orderDetailRepository.sumCommittedStockByVariety(any(), any()))
+                .thenReturn(List.of());
+
+        ScheduledOrderSummaryDTO summary = orderService.getScheduledSummary();
+
+        assertEquals(3, summary.totalScheduledOrders());
+        assertEquals(1, summary.ordersForToday());
+        assertEquals(1, summary.ordersForTomorrow());
+        assertEquals(0, summary.totalCommittedUnits());
     }
 
     @Test
@@ -116,7 +249,7 @@ class OrderServiceTest {
                 .build());
 
         OrderRequestDTO request = new OrderRequestDTO(
-                "Cliente actualizado",
+                "mArCeLo JAIME",
                 "particular",
                 "transferencia",
                 null,
@@ -132,7 +265,7 @@ class OrderServiceTest {
 
         OrderResponseDTO response = orderService.updateOrder(10L, request);
 
-        assertEquals("Cliente actualizado", order.getCustomer());
+        assertEquals("Marcelo Jaime", order.getCustomer());
         assertEquals(SaleType.PARTICULAR, order.getSaleType());
         assertEquals(PaymentType.TRANSFERENCIA, order.getPaymentType());
         assertEquals(BigDecimal.ZERO, order.getCashAmount());

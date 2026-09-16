@@ -59,12 +59,12 @@ public class OrderReconciliationService {
 
         LocalDate from = period.atDay(1);
         LocalDate to = period.plusMonths(1).atDay(1);
+        Sort.TypedSort<Order> orderSort = Sort.sort(Order.class);
         Pageable pageable = PageRequest.of(
                 page,
                 size,
-				Sort.by(
-						Sort.Order.asc("creationDate"),
-						Sort.Order.asc("orderId")));
+                orderSort.by(Order::getCreationDate).ascending()
+                        .and(orderSort.by(Order::getOrderId).ascending()));
 
         Page<Order> result = orderRepository
                 .findByStatusInAndCreationDateGreaterThanEqualAndCreationDateLessThan(

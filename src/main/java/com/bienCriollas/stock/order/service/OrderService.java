@@ -2,10 +2,12 @@ package com.bienCriollas.stock.order.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.springframework.data.domain.Sort;
@@ -20,6 +22,8 @@ import com.bienCriollas.stock.order.dto.OrderDetailRequestDTO;
 import com.bienCriollas.stock.order.dto.OrderDetailResponseDTO;
 import com.bienCriollas.stock.order.dto.OrderRequestDTO;
 import com.bienCriollas.stock.order.dto.OrderResponseDTO;
+import com.bienCriollas.stock.order.dto.CommittedStockDTO;
+import com.bienCriollas.stock.order.dto.ScheduledOrderSummaryDTO;
 import com.bienCriollas.stock.order.interfaces.IOrderService;
 import com.bienCriollas.stock.order.exception.OrderOperationNotAllowedException;
 import com.bienCriollas.stock.order.exception.InvalidOrderException;
@@ -34,16 +38,20 @@ import com.bienCriollas.stock.order.repository.OrderDetailRepository;
 import com.bienCriollas.stock.order.repository.OrderRepository;
 import com.bienCriollas.stock.variety.repository.EmpanadaVarietyRepository;
 import com.bienCriollas.stock.stock.service.StockService;
+import com.bienCriollas.stock.stock.repository.StockRepository;
 
 import com.bienCriollas.stock.order.enums.OrderStatus;
 import com.bienCriollas.stock.order.enums.PaymentType;
 import com.bienCriollas.stock.order.enums.SaleType;
+import com.bienCriollas.stock.order.util.CustomerNameNormalizer;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class OrderService implements IOrderService {
+
+    private static final ZoneId ARGENTINA_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final OrderRepository orderRepository;
 
@@ -53,6 +61,8 @@ public class OrderService implements IOrderService {
     private final OrderDetailRepository orderDetailRepository;
 
     private final EmpanadaVarietyRepository empanadaVarietyRepository;
+
+    private final StockRepository stockRepository;
 
 
 
@@ -68,9 +78,11 @@ public class OrderService implements IOrderService {
             throw new InvalidOrderException("El pedido no puede ser nulo");
         }
         validateOrderForUpdate(orderRequest);
-
         // ✅ Fecha de hoy en Argentina (evita desfasajes en Railway)
-        LocalDate currentDate = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+        LocalDate currentDate = today();
+        validateDeliveryDate(orderRequest.deliveryDate(), currentDate);
+        boolean scheduledForFuture = isFutureDelivery(orderRequest.deliveryDate(), currentDate);
+        validateScheduledDeliveryTime(scheduledForFuture, orderRequest.deliveryTime());
 
 
      // 1) Parsear enums una sola vez
@@ -126,12 +138,14 @@ public class OrderService implements IOrderService {
         // Creamos el pedidos con estado PENDIENTE (siempre se guarda en pendiente)
 
         Order newOrder = Order.builder()
-                .customer(orderRequest.customer())
+                .customer(CustomerNameNormalizer.normalize(orderRequest.customer()))
                 .saleType(saleType)
                 .paymentType(paymentType)
                 .pedidosYaOrderNumber(orderRequest.pedidosYaOrderNumber() != null ? orderRequest.pedidosYaOrderNumber() : null)
                 .deliveryTime(orderRequest.deliveryTime())
                 .creationDate(currentDate)
+                .deliveryDate(orderRequest.deliveryDate())
+                .stockDiscounted(!scheduledForFuture)
                 .cashAmount(cashAmount)
                 .transferAmount(transferAmount)
                 .orderTotal(orderRequest.orderTotal() != null ? orderRequest.orderTotal() : BigDecimal.ZERO)
@@ -156,9 +170,9 @@ public class OrderService implements IOrderService {
             accumulateQuantity(quantities, det.varietyId(), det.quantity());
         }
 
-        TreeMap<Long, Integer> deductions = new TreeMap<>();
-        quantities.forEach((varietyId, quantity) -> deductions.put(varietyId, -quantity));
-        stockService.adjustAvailability(deductions);
+        if (!scheduledForFuture) {
+            stockService.adjustAvailability(negate(quantities));
+        }
 
         for (OrderDetailRequestDTO det : orderDetails) {
             OrderDetail detail = OrderDetail.builder()
@@ -171,16 +185,7 @@ public class OrderService implements IOrderService {
         }
 
         //Retornamos el pedido guardado como DTO
-        return new OrderResponseDTO(
-                savedOrder.getOrderId(),
-                savedOrder.getCustomer(),
-                savedOrder.getSaleType() != null ? savedOrder.getSaleType().name() : null,
-                savedOrder.getPaymentType() != null ? savedOrder.getPaymentType().name() : null,
-                savedOrder.getPedidosYaOrderNumber(),
-                savedOrder.getDeliveryTime(),
-                savedOrder.getOrderTotal(),
-                savedOrder.getStatus()
-        );
+        return toDto(savedOrder);
 
 
     }
@@ -201,31 +206,57 @@ public class OrderService implements IOrderService {
         }
 
         validateOrderForUpdate(orderRequest);
+        LocalDate currentDate = today();
+        validateDeliveryDate(orderRequest.deliveryDate(), currentDate);
+        validateScheduledDeliveryTime(
+                isFutureDelivery(orderRequest.deliveryDate(), currentDate),
+                orderRequest.deliveryTime());
 
         SaleType saleType = parseEnum(SaleType.class, orderRequest.saleType(), "tipo de venta");
         PaymentType paymentType = parseEnum(PaymentType.class, orderRequest.paymentType(), "tipo de pago");
         PaymentAmounts amounts = calculatePaymentAmounts(orderRequest, paymentType);
 
         Map<Long, EmpanadaVariety> newVarieties = new HashMap<>();
-        TreeMap<Long, Integer> stockChanges = getOrderQuantities(order);
+        TreeMap<Long, Integer> previousQuantities = getOrderQuantities(order);
+        TreeMap<Long, Integer> newQuantities = new TreeMap<>();
 
         for (OrderDetailRequestDTO detailRequest : orderRequest.details()) {
             EmpanadaVariety variety = empanadaVarietyRepository.findById(detailRequest.varietyId())
                     .orElseThrow(() -> new VarietyNotFoundException(detailRequest.varietyId()));
             newVarieties.put(detailRequest.varietyId(), variety);
-            accumulateQuantity(stockChanges, detailRequest.varietyId(), -detailRequest.quantity());
+            accumulateQuantity(newQuantities, detailRequest.varietyId(), detailRequest.quantity());
         }
 
-        // Se aplica solamente la diferencia neta entre el pedido anterior y el nuevo.
-        // El servicio de stock bloquea todas las variedades en un orden estable.
+        boolean stockWasDiscounted = !Boolean.FALSE.equals(order.getStockDiscounted());
+        boolean wasFuture = isFutureDelivery(order.getDeliveryDate(), currentDate);
+        boolean willBeFuture = isFutureDelivery(orderRequest.deliveryDate(), currentDate);
+        boolean stockWillBeDiscounted;
+        TreeMap<Long, Integer> stockChanges = new TreeMap<>();
+
+        if (!stockWasDiscounted) {
+            stockWillBeDiscounted = !willBeFuture;
+            if (stockWillBeDiscounted) {
+                addChanges(stockChanges, negate(newQuantities));
+            }
+        } else if (!wasFuture && willBeFuture && order.getStatus() == OrderStatus.PENDIENTE) {
+            stockWillBeDiscounted = false;
+            addChanges(stockChanges, previousQuantities);
+        } else {
+            stockWillBeDiscounted = true;
+            addChanges(stockChanges, previousQuantities);
+            addChanges(stockChanges, negate(newQuantities));
+        }
+
         stockService.adjustAvailability(stockChanges);
         order.getDetails().clear();
 
-        order.setCustomer(orderRequest.customer().trim());
+        order.setCustomer(CustomerNameNormalizer.normalize(orderRequest.customer()));
         order.setSaleType(saleType);
         order.setPaymentType(paymentType);
         order.setPedidosYaOrderNumber(orderRequest.pedidosYaOrderNumber());
         order.setDeliveryTime(orderRequest.deliveryTime());
+        order.setDeliveryDate(orderRequest.deliveryDate());
+        order.setStockDiscounted(stockWillBeDiscounted);
         order.setCashAmount(amounts.cash());
         order.setTransferAmount(amounts.transfer());
         order.setOrderTotal(orderRequest.orderTotal());
@@ -269,8 +300,10 @@ public class OrderService implements IOrderService {
         }
 
         if (newStatus == OrderStatus.CANCELADO) {
-
-            returnStockForCancellation(order);
+            if (!Boolean.FALSE.equals(order.getStockDiscounted())) {
+                returnStockForCancellation(order);
+            }
+            order.setStockDiscounted(false);
 
             // ✅ Si es PEDIDOS_YA, liberamos el número para poder reutilizarlo
             if (order.getSaleType() == SaleType.PEDIDOS_YA) {
@@ -281,6 +314,10 @@ public class OrderService implements IOrderService {
             order.setCashAmount(BigDecimal.ZERO);
             order.setTransferAmount(BigDecimal.ZERO);
             order.setOrderTotal(BigDecimal.ZERO);
+        }
+
+        if (newStatus == OrderStatus.PREPARADO || newStatus == OrderStatus.ENTREGADO) {
+            applyStockIfNeeded(order);
         }
 
         order.setStatus(newStatus);
@@ -359,18 +396,7 @@ public class OrderService implements IOrderService {
             orders = orderRepository.findAll();
         }
 
-        return orders.stream()
-                .map(order -> new OrderResponseDTO(
-                        order.getOrderId(),
-                        order.getCustomer(),
-                        order.getSaleType() != null ? order.getSaleType().name() : null,
-                        order.getPaymentType() != null ? order.getPaymentType().name() : null,
-                        order.getPedidosYaOrderNumber(),
-                        order.getDeliveryTime(),
-                        order.getOrderTotal(),
-                        order.getStatus()
-                ))
-                .toList();
+        return orders.stream().map(this::toDto).toList();
 
 }
 
@@ -380,19 +406,8 @@ public class OrderService implements IOrderService {
     @Transactional(readOnly = true)
     public List<OrderResponseDTO> getOrdersByDate(LocalDate startDate) {
 
-        List<Order> orders = orderRepository.findByCreationDate(startDate);
-
-        return orders.stream()
-                .map(order -> new OrderResponseDTO(
-                        order.getOrderId(),
-                        order.getCustomer(),
-                        order.getSaleType() != null ? order.getSaleType().name() : null,
-                        order.getPaymentType() != null ? order.getPaymentType().name() : null,
-                        order.getPedidosYaOrderNumber(),
-                        order.getDeliveryTime(),
-                        order.getOrderTotal(),
-                        order.getStatus()
-                ))
+        return orderRepository.findDailyOrders(startDate).stream()
+                .map(this::toDto)
                 .toList();
 }
 
@@ -430,32 +445,22 @@ public class OrderService implements IOrderService {
     public Page<OrderResponseDTO> getPagedOrders(OrderStatus status, int page, int size) {
 
         // ORDEN personalizado
-        Sort sort = Sort.by(
-                Sort.Order.by("saleType").with(Sort.Direction.ASC),
-                Sort.Order.by("deliveryTime").with(Sort.Direction.ASC),
-                Sort.Order.by("orderId").with(Sort.Direction.DESC)
-        );
+        Sort.TypedSort<Order> orderSort = Sort.sort(Order.class);
+        Sort sort = orderSort.by(Order::getSaleType).ascending()
+                .and(orderSort.by(Order::getDeliveryTime).ascending())
+                .and(orderSort.by(Order::getOrderId).descending());
 
         Pageable pageable = PageRequest.of(page, size, sort);
 
         // 🔹 solo pedidos del día (fechaCreacion = hoy)
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
         // si querés zona explícita:
         // LocalDate hoy = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
 
         Page<Order> orders =
-                orderRepository.findByStatusAndCreationDate(status, today, pageable);
+                orderRepository.findDailyOrdersByStatus(status, today, pageable);
 
-        return orders.map(p -> new OrderResponseDTO(
-                p.getOrderId(),
-                p.getCustomer(),
-                p.getSaleType() != null ? p.getSaleType().name() : null,
-                p.getPaymentType() != null ? p.getPaymentType().name() : null,
-                p.getPedidosYaOrderNumber(),
-                p.getDeliveryTime(),
-                p.getOrderTotal(),
-                p.getStatus()
-        ));
+        return orders.map(this::toDto);
     }
 
 
@@ -473,17 +478,18 @@ public class OrderService implements IOrderService {
             date = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
         }
 
+        Sort.TypedSort<Order> orderSort = Sort.sort(Order.class);
         Pageable pageable = PageRequest.of(
                 page,
                 size,
-                    Sort.by(Sort.Direction.DESC, "orderId")
-        );
+                orderSort.by(Order::getOrderId).descending());
 
-        return orderRepository.findByStatusAndCreationDate(status, date, pageable)
+        return orderRepository.findDailyOrdersByStatus(status, date, pageable)
                 .map(this::toDto);
     }
 
     private OrderResponseDTO toDto(Order p) {
+        LocalDate currentDate = today();
         return new OrderResponseDTO(
                 p.getOrderId(),
                 p.getCustomer(), // o p.getCustomer().getNombre() si tenés entidad Cliente
@@ -492,15 +498,88 @@ public class OrderService implements IOrderService {
                     p.getPedidosYaOrderNumber(), // tu campo de PedidosYa
                 p.getDeliveryTime(),
                 p.getOrderTotal(),
-                p.getStatus()
+                p.getStatus(),
+                p.getCreationDate(),
+                p.getDeliveryDate(),
+                isFutureDelivery(p.getDeliveryDate(), currentDate),
+                p.getDeliveryDate() != null && p.getDeliveryDate().isEqual(currentDate),
+                !Boolean.FALSE.equals(p.getStockDiscounted())
         );
     }
 
 
     @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponseDTO> getScheduledOrders(LocalDate deliveryDate) {
+        LocalDate currentDate = today();
+        List<Order> orders = deliveryDate == null
+                ? orderRepository.findScheduledOrdersAfter(currentDate, OrderStatus.CANCELADO)
+                : orderRepository.findScheduledOrdersOn(deliveryDate, OrderStatus.CANCELADO);
+
+        return orders.stream().map(this::toDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ScheduledOrderSummaryDTO getScheduledSummary() {
+        LocalDate currentDate = today();
+        long forToday = orderRepository
+                .findScheduledOrdersOn(currentDate, OrderStatus.CANCELADO)
+                .stream()
+                .filter(this::isPendingOrPrepared)
+                .count();
+        long scheduled = forToday + orderRepository
+                .findScheduledOrdersAfter(currentDate, OrderStatus.CANCELADO)
+                .stream()
+                .filter(this::isPendingOrPrepared)
+                .count();
+        long forTomorrow = orderRepository
+                .findScheduledOrdersOn(currentDate.plusDays(1), OrderStatus.CANCELADO)
+                .stream()
+                .filter(this::isPendingOrPrepared)
+                .count();
+        long committedUnits = getCommittedStock().stream()
+                .mapToLong(CommittedStockDTO::committedStock)
+                .sum();
+
+        return new ScheduledOrderSummaryDTO(scheduled, forToday, forTomorrow, committedUnits);
+    }
+
+    private boolean isPendingOrPrepared(Order order) {
+        return order.getStatus() == OrderStatus.PENDIENTE
+                || order.getStatus() == OrderStatus.PREPARADO;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CommittedStockDTO> getCommittedStock() {
+        return orderDetailRepository.sumCommittedStockByVariety(
+                        today(),
+                        Set.of(OrderStatus.CANCELADO, OrderStatus.ENTREGADO))
+                .stream()
+                .map(row -> {
+                    Long varietyId = ((Number) row[0]).longValue();
+                    String varietyName = (String) row[1];
+                    long committed = ((Number) row[2]).longValue();
+                    long physical = stockRepository.findByVarietyIdAndActive(varietyId, 1)
+                            .map(stock -> stock.getAvailableStock().longValue())
+                            .orElse(0L);
+                    return new CommittedStockDTO(
+                            varietyId,
+                            varietyName,
+                            physical,
+                            committed,
+                            physical - committed);
+                })
+                .toList();
+    }
+
+    @Override
     public DailyIncomeDTO calculateDailyIncome(LocalDate date, OrderStatus status) {
 
-        List<Order> orders = orderRepository.findByCreationDateAndStatus(date, status);
+        List<Order> orders = orderRepository.findDailyOrders(date).stream()
+                .filter(order -> order.getStatus() == status)
+                .toList();
         if(orders.isEmpty()) {
             throw new OrderNotFoundException(
                     "No se encontraron pedidos para la fecha " + date + " y estado " + status);
@@ -533,6 +612,14 @@ public class OrderService implements IOrderService {
         stockService.adjustAvailability(getOrderQuantities(order));
     }
 
+    private void applyStockIfNeeded(Order order) {
+        if (!Boolean.FALSE.equals(order.getStockDiscounted())) {
+            return;
+        }
+        stockService.adjustAvailability(negate(getOrderQuantities(order)));
+        order.setStockDiscounted(true);
+    }
+
     private TreeMap<Long, Integer> getOrderQuantities(Order order) {
         TreeMap<Long, Integer> quantities = new TreeMap<>();
         for (OrderDetail detail : order.getDetails()) {
@@ -549,6 +636,36 @@ public class OrderService implements IOrderService {
         quantities.put(
                 varietyId,
                 currentQuantity == null ? change : Math.addExact(currentQuantity, change));
+    }
+
+    private TreeMap<Long, Integer> negate(Map<Long, Integer> quantities) {
+        TreeMap<Long, Integer> result = new TreeMap<>();
+        quantities.forEach((varietyId, quantity) -> result.put(varietyId, -quantity));
+        return result;
+    }
+
+    private void addChanges(Map<Long, Integer> target, Map<Long, Integer> changes) {
+        changes.forEach((varietyId, quantity) -> accumulateQuantity(target, varietyId, quantity));
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(ARGENTINA_ZONE);
+    }
+
+    private boolean isFutureDelivery(LocalDate deliveryDate, LocalDate currentDate) {
+        return deliveryDate != null && deliveryDate.isAfter(currentDate);
+    }
+
+    private void validateDeliveryDate(LocalDate deliveryDate, LocalDate currentDate) {
+        if (deliveryDate != null && deliveryDate.isBefore(currentDate)) {
+            throw new InvalidOrderException("La fecha de entrega no puede ser anterior a la fecha actual");
+        }
+    }
+
+    private void validateScheduledDeliveryTime(boolean scheduledForFuture, LocalTime deliveryTime) {
+        if (scheduledForFuture && deliveryTime == null) {
+            throw new InvalidOrderException("La hora de entrega es obligatoria para un pedido programado");
+        }
     }
 
     private boolean isTransitionAllowed(OrderStatus currentStatus, OrderStatus newStatus) {

@@ -1,6 +1,7 @@
 package com.bienCriollas.stock.order.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -28,6 +29,22 @@ public record OrderRequestDTO (
     @JsonProperty("totalPedido")
     @Schema(description = "Importe total del pedido.", example = "9000.00") BigDecimal orderTotal,
     @JsonProperty("detalles")
-    @Schema(description = "Variedades y cantidades que reemplazan el detalle completo.") List<OrderDetailRequestDTO> details
+    @Schema(description = "Variedades y cantidades que reemplazan el detalle completo.") List<OrderDetailRequestDTO> details,
+    @JsonProperty("fechaEntrega")
+    @Schema(description = "Fecha solicitada de entrega. Si es futura, el pedido queda programado sin descontar stock.", example = "2026-09-13", nullable = true) LocalDate deliveryDate
 
-    ) {}
+    ) {
+    public OrderRequestDTO(
+            String customer,
+            String saleType,
+            String paymentType,
+            String pedidosYaOrderNumber,
+            LocalTime deliveryTime,
+            BigDecimal cashAmount,
+            BigDecimal transferAmount,
+            BigDecimal orderTotal,
+            List<OrderDetailRequestDTO> details) {
+        this(customer, saleType, paymentType, pedidosYaOrderNumber, deliveryTime,
+                cashAmount, transferAmount, orderTotal, details, null);
+    }
+}

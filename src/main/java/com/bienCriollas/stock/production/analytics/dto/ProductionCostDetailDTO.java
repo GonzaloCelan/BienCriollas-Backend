@@ -1,0 +1,42 @@
+package com.bienCriollas.stock.production.analytics.dto;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+public record ProductionCostDetailDTO(
+        Long productionId,
+        LocalDate productionDate,
+        Long varietyId,
+        String varietyName,
+        Integer plannedUnits,
+        Integer finalUnits,
+        Integer wasteUnits,
+        BigDecimal wastePercentage,
+        Integer totalMinutes,
+        Integer peopleCount,
+        BigDecimal expectedIngredientCost,
+        BigDecimal actualIngredientCost,
+        BigDecimal ingredientCostDeviation,
+        BigDecimal standardUnitsPerHour,
+        BigDecimal actualUnitsPerHour,
+        BigDecimal productivityVariationPercentage,
+        BigDecimal standardPersonHours,
+        BigDecimal actualPersonHours,
+        BigDecimal standardUnitsPerPersonHour,
+        BigDecimal actualUnitsPerPersonHour,
+        BigDecimal laborProductivityVariationPercentage,
+        BigDecimal laborHourlyCostSnapshot,
+        BigDecimal expectedPersonHoursForActualOutput,
+        BigDecimal expectedLaborCostForActualOutput,
+        BigDecimal actualLaborCost,
+        BigDecimal laborInefficiencyCost,
+        BigDecimal energyCost,
+        BigDecimal standardTotalCost,
+        BigDecimal actualTotalCost,
+        BigDecimal standardCostPerUnit,
+        BigDecimal actualCostPerUnit,
+        BigDecimal totalCostDeviation,
+        BigDecimal totalCostDeviationPerUnit,
+        BigDecimal estimatedWasteCost,
+        String performanceStatus
+) {}

@@ -31,8 +31,8 @@ public class IncomeRepository {
             FROM pedido
             WHERE estado = 'ENTREGADO'
               AND tipo_venta = 'PARTICULAR'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, BigDecimal.class, start, end);
@@ -44,8 +44,8 @@ public class IncomeRepository {
             FROM pedido
             WHERE estado = 'ENTREGADO'
               AND tipo_venta = 'PARTICULAR'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, BigDecimal.class, start, end);
@@ -57,8 +57,8 @@ public class IncomeRepository {
             FROM pedido
             WHERE estado = 'ENTREGADO'
               AND tipo_venta = 'PEDIDOS_YA'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, BigDecimal.class, start, end);
@@ -81,8 +81,8 @@ public class IncomeRepository {
             FROM pedido
             WHERE estado = 'ENTREGADO'
               AND tipo_venta = 'PARTICULAR'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, Integer.class, start, end);
@@ -94,8 +94,8 @@ public class IncomeRepository {
             FROM pedido
             WHERE estado = 'ENTREGADO'
               AND tipo_venta = 'PEDIDOS_YA'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, Integer.class, start, end);
@@ -107,7 +107,7 @@ public class IncomeRepository {
     ) {
         String sql = """
             SELECT
-                DATE(fecha_pedido) AS fecha,
+                DATE(COALESCE(fecha_entrega, fecha_pedido)) AS fecha,
                 COALESCE(SUM(CASE
                     WHEN tipo_venta = 'PARTICULAR' THEN monto_efectivo
                     ELSE 0
@@ -127,10 +127,10 @@ public class IncomeRepository {
                 END), 0) AS total
             FROM pedido
             WHERE estado = 'ENTREGADO'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
-            GROUP BY DATE(fecha_pedido)
-            ORDER BY DATE(fecha_pedido)
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
+            GROUP BY DATE(COALESCE(fecha_entrega, fecha_pedido))
+            ORDER BY DATE(COALESCE(fecha_entrega, fecha_pedido))
         """;
 
         return jdbcTemplate.query(sql, (rs, rowNum) ->
@@ -153,8 +153,8 @@ public List<IncomeSummaryDTO.IncomeMovementDTO> getMovements(
         SELECT
             p.id_pedido AS id,
             p.id_pedido AS id_pedido,
-            DATE(p.fecha_pedido) AS fecha,
-            CAST(p.fecha_pedido AS DATETIME) AS fecha_hora,
+            DATE(COALESCE(p.fecha_entrega, p.fecha_pedido)) AS fecha,
+            CAST(COALESCE(p.fecha_entrega, p.fecha_pedido) AS DATETIME) AS fecha_hora,
 
             CONVERT(
                 CASE
@@ -189,8 +189,8 @@ public List<IncomeSummaryDTO.IncomeMovementDTO> getMovements(
 
         FROM pedido p
         WHERE p.estado = 'ENTREGADO'
-          AND p.fecha_pedido >= ?
-          AND p.fecha_pedido < ?
+          AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+          AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
 
         UNION ALL
 

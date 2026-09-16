@@ -2,6 +2,7 @@ package com.bienCriollas.stock.order.repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Collection;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,21 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
 
 
     List<OrderDetail> findByOrderOrderId(Long orderId);
+
+    @Query("""
+            select detail.variety.varietyId,
+                   detail.variety.name,
+                   sum(detail.quantity)
+            from OrderDetail detail
+            where detail.order.deliveryDate > :today
+              and detail.order.status not in :excludedStatuses
+              and detail.order.stockDiscounted = false
+            group by detail.variety.varietyId, detail.variety.name
+            order by detail.variety.name asc
+            """)
+    List<Object[]> sumCommittedStockByVariety(
+            @Param("today") LocalDate today,
+            @Param("excludedStatuses") Collection<com.bienCriollas.stock.order.enums.OrderStatus> excludedStatuses);
 
 
     @Query("SELECT COALESCE(SUM(detail.quantity), 0) " +
