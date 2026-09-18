@@ -5,7 +5,7 @@ Todos los endpoints de `/api/v2/estadisticas` permiten analizar un año calendar
 ```http
 GET /api/v2/estadisticas/resumen?periodo=ANIO&anio=2026
 GET /api/v2/estadisticas/hora-pico?periodo=ANIO&anio=2026
-GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=IMPORTE&limit=5
+GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=PEDIDOS&limit=5
 ```
 
 `anio` es obligatorio para `ANIO`, debe ser entero y estar entre 1000 y 9998. Este rango garantiza que tanto el inicio como el fin exclusivo de la consulta sean fechas válidas de MySQL. Parámetros faltantes, no numéricos o fuera de rango devuelven HTTP 400. La autenticación y autorización existentes se conservan.
@@ -24,7 +24,7 @@ Ranking y Hora Pico devuelven:
 }
 ```
 
-El resto de sus campos conserva el contrato existente. Ranking conserva `orden=IMPORTE` y `limit=5` como defaults, y permite cambiar ambos. Hora Pico acumula cada franja horaria durante todas las fechas del año; no genera una franja por fecha.
+El resto de sus campos conserva el contrato existente. Ranking usa `orden=PEDIDOS` y `limit=5` como defaults, y permite cambiar ambos. Hora Pico acumula cada franja horaria durante todas las fechas del año; no genera una franja por fecha.
 
 Resumen conserva su JSON actual, sin agregar campos. El filtro anual se aplica a todas sus métricas: pedidos entregados, empanadas vendidas, ticket promedio, variedad más vendida, ranking de variedades, ventas por día de semana, tipos de venta, medios de pago y mermas por variedad.
 

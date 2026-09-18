@@ -12,7 +12,7 @@ Requiere `Authorization: Bearer <token>` y el permiso existente de Estadísticas
 | `fecha` | `yyyy-MM-dd` | Obligatorio para `DIA` y `ULTIMOS_7_DIAS` |
 | `mes` | `yyyy-MM` | Obligatorio para `MES` |
 | `anio` | Entero entre 1000 y 9998 | Obligatorio para `ANIO` |
-| `orden` | `IMPORTE`, `PEDIDOS` | Default `IMPORTE` |
+| `orden` | `IMPORTE`, `PEDIDOS` | Default `PEDIDOS` |
 | `limit` | Entero entre 1 y 100 | Default `5` |
 
 Ejemplos:
@@ -20,9 +20,9 @@ Ejemplos:
 ```http
 GET /api/v2/estadisticas/clientes-ranking?periodo=DIA&fecha=2026-09-18
 GET /api/v2/estadisticas/clientes-ranking?periodo=ULTIMOS_7_DIAS&fecha=2026-09-18&limit=10
-GET /api/v2/estadisticas/clientes-ranking?periodo=MES&mes=2026-09&orden=IMPORTE&limit=5
+GET /api/v2/estadisticas/clientes-ranking?periodo=MES&mes=2026-09&orden=PEDIDOS&limit=5
 GET /api/v2/estadisticas/clientes-ranking?periodo=MES&mes=2026-09&orden=PEDIDOS&limit=100
-GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=IMPORTE&limit=5
+GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=PEDIDOS&limit=5
 ```
 
 ## Reglas
@@ -34,7 +34,7 @@ GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=IMPORTE&l
 - Se agrupa ignorando mayúsculas, espacios repetidos (incluyendo espacios Unicode) y diacríticos: `Lucia Fernandez`, `LUCIA FERNANDEZ` y `Lucía Fernández` representan el mismo cliente. No existe una identificación adicional por DNI o teléfono: personas diferentes con el mismo nombre normalizado quedan agrupadas.
 - Se muestra la variante del pedido de fecha comercial más reciente dentro del período; si comparten fecha, se utiliza el mayor ID. Para presentación se normalizan espacios y mayúsculas, conservando los acentos de esa variante. No se actualiza ningún Pedido.
 - `IMPORTE`: importe descendente, cantidad de pedidos descendente y nombre ascendente (orden alfabético español).
-- `PEDIDOS`: cantidad de pedidos descendente, importe descendente y nombre ascendente.
+- `PEDIDOS` (default): cantidad de pedidos descendente, importe descendente y nombre ascendente.
 - Los importes, promedios y porcentajes se calculan con `BigDecimal`, con 2 decimales y redondeo `HALF_UP`.
 - Cada pedido se cuenta una sola vez. `totalUnidades` suma las cantidades de sus detalles; pedidos sin detalles aportan 0 unidades.
 
@@ -47,7 +47,7 @@ GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=IMPORTE&l
     "desde": "2026-09-01",
     "hasta": "2026-09-30"
   },
-  "orden": "IMPORTE",
+  "orden": "PEDIDOS",
   "totalClientes": 3,
   "ventasParticularesPeriodo": 100000.00,
   "totalTopClientes": 80000.00,

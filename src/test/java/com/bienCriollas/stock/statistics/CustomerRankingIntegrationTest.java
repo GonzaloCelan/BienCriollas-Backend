@@ -55,7 +55,7 @@ class CustomerRankingIntegrationTest {
                 .andExpect(jsonPath("$.periodo.tipo").value("DIA"))
                 .andExpect(jsonPath("$.periodo.desde").value(DATE.toString()))
                 .andExpect(jsonPath("$.periodo.hasta").value(DATE.toString()))
-                .andExpect(jsonPath("$.orden").value("IMPORTE"))
+                .andExpect(jsonPath("$.orden").value("PEDIDOS"))
                 .andExpect(jsonPath("$.totalClientes").value(2))
                 .andExpect(jsonPath("$.ventasParticularesPeriodo").value(50))
                 .andExpect(jsonPath("$.totalTopClientes").value(45.30))
@@ -155,12 +155,12 @@ class CustomerRankingIntegrationTest {
     }
 
     @Test
-    void optionalOrderByPedidosChangesTheRankingAndItsTopSales() throws Exception {
+    void defaultOrderPrioritizesMoreOrdersAndAllowsExplicitAmountOrder() throws Exception {
         sale("Ana", DATE, "1", "ENTREGADO", "PARTICULAR");
         sale("Ana", DATE, "2", "ENTREGADO", "PARTICULAR");
         sale("Berta", DATE, "100", "ENTREGADO", "PARTICULAR");
         mockMvc.perform(get(BASE).param("periodo", "DIA").param("fecha", DATE.toString())
-                .param("orden", "PEDIDOS").param("limit", "1").with(admin()))
+                .param("limit", "1").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orden").value("PEDIDOS"))
                 .andExpect(jsonPath("$.clientes[0].cliente").value("Ana"))
@@ -168,6 +168,14 @@ class CustomerRankingIntegrationTest {
                 .andExpect(jsonPath("$.totalTopClientes").value(3))
                 .andExpect(jsonPath("$.ventasParticularesPeriodo").value(103))
                 .andExpect(jsonPath("$.porcentajeVentasTop").value(2.91));
+
+        mockMvc.perform(get(BASE).param("periodo", "DIA").param("fecha", DATE.toString())
+                .param("orden", "IMPORTE").param("limit", "1").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orden").value("IMPORTE"))
+                .andExpect(jsonPath("$.clientes[0].cliente").value("Berta"))
+                .andExpect(jsonPath("$.clientes[0].cantidadPedidos").value(1))
+                .andExpect(jsonPath("$.totalTopClientes").value(100));
     }
 
     @Test

@@ -38,7 +38,7 @@ public class StatisticsController {
             @RequestParam(value = "mes", required = false)
             @DateTimeFormat(pattern = "yyyy-MM") YearMonth month,
             @RequestParam(value = "anio", required = false) Integer year,
-            @RequestParam(value = "orden", defaultValue = "IMPORTE") CustomerRankingOrder order,
+            @RequestParam(value = "orden", defaultValue = "PEDIDOS") CustomerRankingOrder order,
             @RequestParam(value = "limit", defaultValue = "5") int limit) {
         return ResponseEntity.ok(statisticsService.getCustomerRanking(period, date, month, year, order, limit));
     }
