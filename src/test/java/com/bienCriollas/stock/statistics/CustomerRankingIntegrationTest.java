@@ -155,7 +155,7 @@ class CustomerRankingIntegrationTest {
     }
 
     @Test
-    void defaultOrderPrioritizesMoreOrdersAndAllowsExplicitAmountOrder() throws Exception {
+    void alwaysPrioritizesMoreOrdersEvenWhenTheFrontendExplicitlyRequestsAmountOrder() throws Exception {
         sale("Ana", DATE, "1", "ENTREGADO", "PARTICULAR");
         sale("Ana", DATE, "2", "ENTREGADO", "PARTICULAR");
         sale("Berta", DATE, "100", "ENTREGADO", "PARTICULAR");
@@ -172,10 +172,36 @@ class CustomerRankingIntegrationTest {
         mockMvc.perform(get(BASE).param("periodo", "DIA").param("fecha", DATE.toString())
                 .param("orden", "IMPORTE").param("limit", "1").with(admin()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orden").value("IMPORTE"))
-                .andExpect(jsonPath("$.clientes[0].cliente").value("Berta"))
-                .andExpect(jsonPath("$.clientes[0].cantidadPedidos").value(1))
-                .andExpect(jsonPath("$.totalTopClientes").value(100));
+                .andExpect(jsonPath("$.orden").value("PEDIDOS"))
+                .andExpect(jsonPath("$.clientes[0].cliente").value("Ana"))
+                .andExpect(jsonPath("$.clientes[0].cantidadPedidos").value(2))
+                .andExpect(jsonPath("$.totalTopClientes").value(3));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "?periodo=DIA&fecha=2026-09-18", "?periodo=ULTIMOS_7_DIAS&fecha=2026-09-18",
+            "?periodo=MES&mes=2026-09", "?periodo=ANIO&anio=2026"
+    })
+    void guzmanWithTwentyOneOrdersRanksAboveLargeOneOffSalesInEveryPeriod(String query) throws Exception {
+        sale("Prestamo Py", DATE, "800000", "ENTREGADO", "PARTICULAR");
+        sale("Sigma Y Ut", DATE, "780000", "ENTREGADO", "PARTICULAR");
+        for (int i = 0; i < 21; i++) {
+            sale("Guzman", DATE, "100", "ENTREGADO", "PARTICULAR");
+        }
+        for (int i = 0; i < 17; i++) {
+            sale("Gustavo Balmaceda", DATE, "100", "ENTREGADO", "PARTICULAR");
+        }
+        for (int i = 0; i < 10; i++) {
+            sale("Lisandro Carbajal", DATE, "100", "ENTREGADO", "PARTICULAR");
+        }
+        mockMvc.perform(get(BASE + query + "&orden=IMPORTE&limit=5").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orden").value("PEDIDOS"))
+                .andExpect(jsonPath("$.clientes[*].cliente").value(org.hamcrest.Matchers.contains(
+                        "Guzman", "Gustavo Balmaceda", "Lisandro Carbajal", "Prestamo Py", "Sigma Y Ut")))
+                .andExpect(jsonPath("$.clientes[*].cantidadPedidos").value(org.hamcrest.Matchers.contains(21, 17, 10, 1, 1)))
+                .andExpect(jsonPath("$.clientes[0].posicion").value(1));
     }
 
     @Test

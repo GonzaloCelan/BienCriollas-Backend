@@ -12,7 +12,7 @@ Requiere `Authorization: Bearer <token>` y el permiso existente de Estadísticas
 | `fecha` | `yyyy-MM-dd` | Obligatorio para `DIA` y `ULTIMOS_7_DIAS` |
 | `mes` | `yyyy-MM` | Obligatorio para `MES` |
 | `anio` | Entero entre 1000 y 9998 | Obligatorio para `ANIO` |
-| `orden` | `IMPORTE`, `PEDIDOS` | Default `PEDIDOS` |
+| `orden` | `PEDIDOS`; `IMPORTE` aceptado por compatibilidad | Siempre se aplica `PEDIDOS` |
 | `limit` | Entero entre 1 y 100 | Default `5` |
 
 Ejemplos:
@@ -33,8 +33,8 @@ GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=PEDIDOS&l
 - Los nombres nulos, vacíos o compuestos exclusivamente por espacios se excluyen de `clientes` y `totalClientes`.
 - Se agrupa ignorando mayúsculas, espacios repetidos (incluyendo espacios Unicode) y diacríticos: `Lucia Fernandez`, `LUCIA FERNANDEZ` y `Lucía Fernández` representan el mismo cliente. No existe una identificación adicional por DNI o teléfono: personas diferentes con el mismo nombre normalizado quedan agrupadas.
 - Se muestra la variante del pedido de fecha comercial más reciente dentro del período; si comparten fecha, se utiliza el mayor ID. Para presentación se normalizan espacios y mayúsculas, conservando los acentos de esa variante. No se actualiza ningún Pedido.
-- `IMPORTE`: importe descendente, cantidad de pedidos descendente y nombre ascendente (orden alfabético español).
-- `PEDIDOS` (default): cantidad de pedidos descendente, importe descendente y nombre ascendente.
+- Siempre se aplica `PEDIDOS`: cantidad de pedidos descendente, importe descendente y nombre ascendente (orden alfabético español). El importe solamente desempata clientes con igual cantidad de pedidos.
+- `orden=IMPORTE` se acepta para no interrumpir solicitudes de versiones anteriores del frontend, pero también se ordena por pedidos y se responde `orden: "PEDIDOS"`. El frontend debe conservar el orden de `clientes` y mostrar la leyenda “ordenados por cantidad de pedidos”.
 - Los importes, promedios y porcentajes se calculan con `BigDecimal`, con 2 decimales y redondeo `HALF_UP`.
 - Cada pedido se cuenta una sola vez. `totalUnidades` suma las cantidades de sus detalles; pedidos sin detalles aportan 0 unidades.
 
@@ -79,7 +79,7 @@ Este ejemplo corresponde a `limit=2`. El tercer cliente y/o ventas anónimas com
 | --- | --- |
 | `totalClientes` | Clientes distintos con nombre válido antes de aplicar `limit` |
 | `ventasParticularesPeriodo` | Suma de **todos** los pedidos particulares entregados del período, incluso los sin nombre |
-| `totalTopClientes` | Suma de los importes de los clientes efectivamente devueltos |
+| `totalTopClientes` | Suma de los importes de los clientes efectivamente devueltos, seleccionados por cantidad de pedidos |
 | `porcentajeVentasTop` | `totalTopClientes * 100 / ventasParticularesPeriodo`; 0 si el denominador es 0 |
 | `clientes[].posicion` | Posición correlativa desde 1 según el orden solicitado |
 | `clientes[].cantidadPedidos` | Pedidos válidos del cliente durante el período |

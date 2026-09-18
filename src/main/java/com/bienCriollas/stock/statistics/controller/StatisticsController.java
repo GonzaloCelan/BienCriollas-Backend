@@ -30,7 +30,7 @@ public class StatisticsController {
     private final StatisticsService statisticsService;
 
     @GetMapping("/clientes-ranking")
-    @Operation(summary = "Obtener ranking de clientes", description = "Particulares entregados agrupados por cliente y fecha comercial. DIA y ULTIMOS_7_DIAS requieren fecha; MES requiere mes (yyyy-MM); ANIO requiere anio (1000 a 9998). limit: 1 a 100.")
+    @Operation(summary = "Obtener ranking de clientes", description = "Particulares entregados ordenados siempre por cantidad de pedidos. orden=IMPORTE se acepta por compatibilidad y se aplica PEDIDOS. DIA y ULTIMOS_7_DIAS requieren fecha; MES requiere mes (yyyy-MM); ANIO requiere anio (1000 a 9998). limit: 1 a 100.")
     public ResponseEntity<CustomerRankingResponseDTO> getCustomerRanking(
             @RequestParam("periodo") AnalysisPeriod period,
             @RequestParam(value = "fecha", required = false)

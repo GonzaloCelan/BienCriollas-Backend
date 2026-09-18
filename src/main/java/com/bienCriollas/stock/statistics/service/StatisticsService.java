@@ -43,8 +43,9 @@ public class StatisticsService implements IStatisticsService {
         }
         DateRange range = periodResolver.resolve(period, date, month, year);
         var sales = statisticsRepository.getDeliveredParticularCustomerSales(range.from(), range.until());
+        // Older frontends still send IMPORTE. The business ranking always prioritizes order count.
         return customerRankingCalculator.calculate(
-                new PeriodDTO(period, range.from(), range.until().minusDays(1)), order, limit, sales);
+                new PeriodDTO(period, range.from(), range.until().minusDays(1)), CustomerRankingOrder.PEDIDOS, limit, sales);
     }
 
     @Override
