@@ -8,9 +8,10 @@ Requiere `Authorization: Bearer <token>` y el permiso existente de Estadísticas
 
 | Parámetro | Valores / formato | Requerido / default |
 | --- | --- | --- |
-| `periodo` | `DIA`, `ULTIMOS_7_DIAS`, `MES` | Obligatorio |
+| `periodo` | `DIA`, `ULTIMOS_7_DIAS`, `MES`, `ANIO` | Obligatorio |
 | `fecha` | `yyyy-MM-dd` | Obligatorio para `DIA` y `ULTIMOS_7_DIAS` |
 | `mes` | `yyyy-MM` | Obligatorio para `MES` |
+| `anio` | Entero entre 1000 y 9998 | Obligatorio para `ANIO` |
 | `orden` | `IMPORTE`, `PEDIDOS` | Default `IMPORTE` |
 | `limit` | Entero entre 1 y 100 | Default `5` |
 
@@ -21,13 +22,14 @@ GET /api/v2/estadisticas/clientes-ranking?periodo=DIA&fecha=2026-09-18
 GET /api/v2/estadisticas/clientes-ranking?periodo=ULTIMOS_7_DIAS&fecha=2026-09-18&limit=10
 GET /api/v2/estadisticas/clientes-ranking?periodo=MES&mes=2026-09&orden=IMPORTE&limit=5
 GET /api/v2/estadisticas/clientes-ranking?periodo=MES&mes=2026-09&orden=PEDIDOS&limit=100
+GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=IMPORTE&limit=5
 ```
 
 ## Reglas
 
 - Solo participan pedidos `PARTICULAR` en estado `ENTREGADO`.
 - La fecha comercial es `fechaPedido`, igual que en `/estadisticas/resumen`. No se utiliza `createdAt` ni `fechaEntrega`. Los pedidos históricos con `createdAt` nulo también participan si su fecha comercial corresponde al período.
-- Se reutiliza `StatisticsPeriodResolver`: día seleccionado completo; últimos 7 días incluyendo la fecha seleccionada y sus 6 anteriores; mes calendario completo. `desde` y `hasta` en la respuesta son inclusivos.
+- Se reutiliza `StatisticsPeriodResolver`: día seleccionado completo; últimos 7 días incluyendo la fecha seleccionada y sus 6 anteriores; mes calendario completo; año calendario completo del 1 de enero al 31 de diciembre. `desde` y `hasta` en la respuesta son inclusivos.
 - Los nombres nulos, vacíos o compuestos exclusivamente por espacios se excluyen de `clientes` y `totalClientes`.
 - Se agrupa ignorando mayúsculas, espacios repetidos (incluyendo espacios Unicode) y diacríticos: `Lucia Fernandez`, `LUCIA FERNANDEZ` y `Lucía Fernández` representan el mismo cliente. No existe una identificación adicional por DNI o teléfono: personas diferentes con el mismo nombre normalizado quedan agrupadas.
 - Se muestra la variante del pedido de fecha comercial más reciente dentro del período; si comparten fecha, se utiliza el mayor ID. Para presentación se normalizan espacios y mayúsculas, conservando los acentos de esa variante. No se actualiza ningún Pedido.
@@ -93,7 +95,7 @@ Un período sin pedidos válidos responde HTTP 200 con `clientes: []`, `totalCli
 
 Si existen únicamente ventas anónimas, la lista y el Top quedan vacíos/en 0, pero `ventasParticularesPeriodo` conserva esas ventas. Esto respeta la regla de sumar todos los particulares entregados (sección 23 del contrato original).
 
-- HTTP 400: período/fecha/mes faltante o inválido, `orden` inválido, `limit` no entero o fuera de 1 a 100. Usa el formato de errores existente del backend.
+- HTTP 400: período/fecha/mes/año faltante o inválido, `orden` inválido, `limit` no entero o fuera de 1 a 100. Usa el formato de errores existente del backend.
 - HTTP 401: token ausente o inválido.
 - HTTP 403: usuario sin permiso de Estadísticas.
 

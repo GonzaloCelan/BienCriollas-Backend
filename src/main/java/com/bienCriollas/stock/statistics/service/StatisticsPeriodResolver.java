@@ -12,7 +12,7 @@ import com.bienCriollas.stock.statistics.exception.InvalidStatisticsRangeExcepti
 @Component
 public class StatisticsPeriodResolver {
 
-    public DateRange resolve(AnalysisPeriod period, LocalDate date, YearMonth month) {
+    public DateRange resolve(AnalysisPeriod period, LocalDate date, YearMonth month, Integer year) {
         if (period == null) {
             throw new InvalidStatisticsRangeException("El periodo es obligatorio");
         }
@@ -32,10 +32,34 @@ public class StatisticsPeriodResolver {
                     }
                     yield new DateRange(month.atDay(1), month.plusMonths(1).atDay(1));
                 }
+                case ANIO -> {
+                    if (year == null) {
+                        throw new InvalidStatisticsRangeException("El anio es obligatorio para el periodo ANIO");
+                    }
+                    // Both bounds must fit MySQL DATE; the upper bound is exclusive.
+                    if (year < 1000 || year > 9998) {
+                        throw new InvalidStatisticsRangeException("El anio debe estar entre 1000 y 9998");
+                    }
+                    yield new DateRange(LocalDate.of(year, 1, 1), LocalDate.of(year + 1, 1, 1));
+                }
             };
         } catch (DateTimeException exception) {
             throw new InvalidStatisticsRangeException("El periodo solicitado excede el rango de fechas permitido");
         }
+    }
+
+    public DateRange resolveSummary(AnalysisPeriod period, LocalDate date, YearMonth month,
+            Integer year, LocalDate start, LocalDate end) {
+        if (period == null) {
+            if (date != null || month != null || year != null) {
+                throw new InvalidStatisticsRangeException("El periodo es obligatorio al usar fecha, mes o anio");
+            }
+            return new DateRange(start, end);
+        }
+        if (start != null || end != null) {
+            throw new InvalidStatisticsRangeException("Usar periodo o desde/hasta, sin combinar ambos filtros");
+        }
+        return resolve(period, date, month, year);
     }
 
     private void requireDate(LocalDate date) {

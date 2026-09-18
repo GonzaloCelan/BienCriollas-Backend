@@ -34,14 +34,14 @@ public class StatisticsService implements IStatisticsService {
     @Override
     @Transactional(readOnly = true)
     public CustomerRankingResponseDTO getCustomerRanking(AnalysisPeriod period, LocalDate date,
-            YearMonth month, CustomerRankingOrder order, int limit) {
+            YearMonth month, Integer year, CustomerRankingOrder order, int limit) {
         if (limit < 1 || limit > 100) {
             throw new InvalidStatisticsRangeException("limit debe estar entre 1 y 100.");
         }
         if (order == null) {
             throw new InvalidStatisticsRangeException("orden debe ser IMPORTE o PEDIDOS.");
         }
-        DateRange range = periodResolver.resolve(period, date, month);
+        DateRange range = periodResolver.resolve(period, date, month, year);
         var sales = statisticsRepository.getDeliveredParticularCustomerSales(range.from(), range.until());
         return customerRankingCalculator.calculate(
                 new PeriodDTO(period, range.from(), range.until().minusDays(1)), order, limit, sales);
@@ -49,12 +49,20 @@ public class StatisticsService implements IStatisticsService {
 
     @Override
     @Transactional(readOnly = true)
-    public PeakHourResponseDTO getPeakHour(AnalysisPeriod period, LocalDate date, YearMonth month) {
-        DateRange range = periodResolver.resolve(period, date, month);
+    public PeakHourResponseDTO getPeakHour(AnalysisPeriod period, LocalDate date, YearMonth month, Integer year) {
+        DateRange range = periodResolver.resolve(period, date, month, year);
         var orders = statisticsRepository.getDeliveredOrderTimes(
                 range.from().atStartOfDay(), range.until().atStartOfDay());
         return peakHourCalculator.calculate(
                 new PeriodDTO(period, range.from(), range.until().minusDays(1)), orders);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StatisticsSummaryDTO getSummary(AnalysisPeriod period, LocalDate date, YearMonth month,
+            Integer year, LocalDate start, LocalDate end) {
+        DateRange range = periodResolver.resolveSummary(period, date, month, year, start, end);
+        return getSummary(range.from(), range.until());
     }
 
     @Override

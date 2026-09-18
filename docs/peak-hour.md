@@ -10,14 +10,17 @@
 | `?periodo=DIA&fecha=2026-09-18` | 18 de septiembre |
 | `?periodo=ULTIMOS_7_DIAS&fecha=2026-09-18` | 12 al 18 de septiembre, inclusive |
 | `?periodo=MES&mes=2026-09` | 1 al 30 de septiembre, inclusive |
+| `?periodo=ANIO&anio=2026` | 1 de enero al 31 de diciembre, inclusive |
 
 `periodo` es obligatorio. `fecha` es obligatoria para `DIA` y `ULTIMOS_7_DIAS`;
-`mes` es obligatorio para `MES` y usa `yyyy-MM`. Los parámetros faltantes o inválidos
+`mes` es obligatorio para `MES` y usa `yyyy-MM`; `anio` es obligatorio para `ANIO`
+y es un entero entre 1000 y 9998. Los parámetros faltantes o inválidos
 devuelven HTTP 400 con el formato de error habitual.
 
 Las consultas usan inicio inclusivo y fin exclusivo, como `/estadisticas/resumen`.
-Para consultar ambas estadísticas con el mismo filtro global, enviar al resumen las
-fechas de inicio y del día posterior al último día analizado. La respuesta de Hora Pico
+El resumen también acepta los mismos parámetros `periodo`, `fecha`, `mes` y `anio`.
+Conserva además su consulta por `desde` y `hasta` (sin combinar ambos modos).
+La respuesta de Hora Pico
 presenta `periodo.desde` y `periodo.hasta` como fechas inclusivas.
 
 ## Respuesta
@@ -58,7 +61,7 @@ Ejemplo de una franja:
 - Un pedido programado participa según su creación, una vez entregado.
 - Cada pedido cuenta una vez, independientemente de sus detalles y cantidades.
 - Los turnos y franjas incluyen el inicio y excluyen el fin. `14:30` y `23:30` ya están fuera.
-- Día, siete días y mes acumulan la misma franja horaria de todas las fechas analizadas.
+- Día, siete días, mes y año acumulan la misma franja horaria de todas las fechas analizadas.
 - Hora Pico se elige entre las doce franjas de los turnos: mayor cantidad de pedidos,
   luego mayor monto vendido y, en empate completo, la franja cronológicamente más temprana.
 - Todos los porcentajes usan como denominador `totalPedidosAnalizados`, incluyendo

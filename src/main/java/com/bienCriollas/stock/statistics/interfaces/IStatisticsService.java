@@ -13,8 +13,11 @@ public interface IStatisticsService {
 
     StatisticsSummaryDTO getSummary(LocalDate start, LocalDate end);
 
-    PeakHourResponseDTO getPeakHour(AnalysisPeriod period, LocalDate date, YearMonth month);
+    StatisticsSummaryDTO getSummary(AnalysisPeriod period, LocalDate date, YearMonth month,
+            Integer year, LocalDate start, LocalDate end);
+
+    PeakHourResponseDTO getPeakHour(AnalysisPeriod period, LocalDate date, YearMonth month, Integer year);
 
     CustomerRankingResponseDTO getCustomerRanking(AnalysisPeriod period, LocalDate date,
-            YearMonth month, CustomerRankingOrder order, int limit);
+            YearMonth month, Integer year, CustomerRankingOrder order, int limit);
 }

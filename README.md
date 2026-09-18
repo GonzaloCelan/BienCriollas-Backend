@@ -280,9 +280,13 @@ Los módulos existentes utilizan `/api/v2`. Producción expone Ingredientes en
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/resumen?desde=2026-08-01&hasta=2026-08-31` | Devuelve métricas consolidadas del período. |
-| `GET` | `/clientes-ranking?periodo=MES&mes=2026-09&orden=IMPORTE&limit=5` | Ranking de clientes particulares con pedidos entregados; admite día, últimos 7 días y mes. |
+| `GET` | `/clientes-ranking?periodo=MES&mes=2026-09&orden=IMPORTE&limit=5` | Ranking de clientes particulares con pedidos entregados; admite día, últimos 7 días, mes y año. |
+| `GET` | `/resumen?periodo=ANIO&anio=2026` | Todas las métricas del resumen para un año completo. |
+| `GET` | `/hora-pico?periodo=ANIO&anio=2026` | Hora pico acumulada durante el año. |
+| `GET` | `/clientes-ranking?periodo=ANIO&anio=2026` | Ranking de clientes del año. |
 
 Contrato detallado del ranking: [docs/customer-ranking.md](docs/customer-ranking.md).
+Filtro anual compartido por Estadísticas: [docs/statistics-year.md](docs/statistics-year.md).
 
 ## Valores del dominio
 
