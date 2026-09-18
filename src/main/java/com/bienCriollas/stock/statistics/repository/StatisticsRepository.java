@@ -2,6 +2,7 @@ package com.bienCriollas.stock.statistics.repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,6 +17,45 @@ import lombok.RequiredArgsConstructor;
 public class StatisticsRepository {
 
     private final JdbcTemplate jdbcTemplate;
+
+    public List<OrderCustomerSale> getDeliveredParticularCustomerSales(LocalDate start, LocalDate end) {
+        // One row per order prevents its amount/count from being multiplied by its details.
+        String sql = """
+                SELECT p.id_pedido, p.nombre_cliente, p.fecha_pedido, p.total_pedido,
+                       COALESCE(SUM(dp.cantidad), 0) AS total_unidades
+                FROM pedido p
+                LEFT JOIN pedido_detalle dp ON dp.id_pedido = p.id_pedido
+                WHERE p.tipo_venta = 'PARTICULAR'
+                  AND p.estado = 'ENTREGADO'
+                  AND p.fecha_pedido >= ?
+                  AND p.fecha_pedido < ?
+                GROUP BY p.id_pedido, p.nombre_cliente, p.fecha_pedido, p.total_pedido
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new OrderCustomerSale(
+                rs.getLong("id_pedido"), rs.getString("nombre_cliente"),
+                rs.getObject("fecha_pedido", LocalDate.class), rs.getBigDecimal("total_pedido"),
+                rs.getLong("total_unidades")), start, end);
+    }
+
+    public record OrderCustomerSale(long orderId, String customer, LocalDate commercialDate,
+                                    BigDecimal totalSales, long totalUnits) {}
+
+    public List<OrderTimeSale> getDeliveredOrderTimes(LocalDateTime start, LocalDateTime end) {
+        String sql = """
+                SELECT created_at, total_pedido
+                FROM pedido
+                WHERE estado = 'ENTREGADO'
+                  AND created_at IS NOT NULL
+                  AND created_at >= ?
+                  AND created_at < ?
+                """;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new OrderTimeSale(
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getBigDecimal("total_pedido")), start, end);
+    }
+
+    public record OrderTimeSale(LocalDateTime createdAt, BigDecimal totalSales) {}
 
     public Integer countDeliveredOrders(LocalDate start, LocalDate end) {
         String sql = """

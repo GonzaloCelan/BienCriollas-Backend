@@ -501,6 +501,7 @@ public class OrderService implements IOrderService {
                 p.getStatus(),
                 p.getCreationDate(),
                 p.getDeliveryDate(),
+                p.getCreatedAt(),
                 isFutureDelivery(p.getDeliveryDate(), currentDate),
                 p.getDeliveryDate() != null && p.getDeliveryDate().isEqual(currentDate),
                 !Boolean.FALSE.equals(p.getStockDiscounted())

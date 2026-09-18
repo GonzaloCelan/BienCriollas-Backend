@@ -3,15 +3,22 @@ package com.bienCriollas.stock.statistics.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bienCriollas.stock.statistics.dto.StatisticsSummaryDTO;
+import com.bienCriollas.stock.statistics.dto.PeakHourResponseDTO;
+import com.bienCriollas.stock.statistics.dto.PeriodDTO;
+import com.bienCriollas.stock.statistics.dto.CustomerRankingResponseDTO;
+import com.bienCriollas.stock.statistics.enums.CustomerRankingOrder;
 import com.bienCriollas.stock.statistics.exception.InvalidStatisticsRangeException;
+import com.bienCriollas.stock.statistics.enums.AnalysisPeriod;
 import com.bienCriollas.stock.statistics.interfaces.IStatisticsService;
 import com.bienCriollas.stock.statistics.repository.StatisticsRepository;
+import com.bienCriollas.stock.statistics.service.StatisticsPeriodResolver.DateRange;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,20 +27,49 @@ import lombok.RequiredArgsConstructor;
 public class StatisticsService implements IStatisticsService {
 
     private final StatisticsRepository statisticsRepository;
+    private final StatisticsPeriodResolver periodResolver;
+    private final PeakHourCalculator peakHourCalculator;
+    private final CustomerRankingCalculator customerRankingCalculator;
+
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerRankingResponseDTO getCustomerRanking(AnalysisPeriod period, LocalDate date,
+            YearMonth month, CustomerRankingOrder order, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new InvalidStatisticsRangeException("limit debe estar entre 1 y 100.");
+        }
+        if (order == null) {
+            throw new InvalidStatisticsRangeException("orden debe ser IMPORTE o PEDIDOS.");
+        }
+        DateRange range = periodResolver.resolve(period, date, month);
+        var sales = statisticsRepository.getDeliveredParticularCustomerSales(range.from(), range.until());
+        return customerRankingCalculator.calculate(
+                new PeriodDTO(period, range.from(), range.until().minusDays(1)), order, limit, sales);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PeakHourResponseDTO getPeakHour(AnalysisPeriod period, LocalDate date, YearMonth month) {
+        DateRange range = periodResolver.resolve(period, date, month);
+        var orders = statisticsRepository.getDeliveredOrderTimes(
+                range.from().atStartOfDay(), range.until().atStartOfDay());
+        return peakHourCalculator.calculate(
+                new PeriodDTO(period, range.from(), range.until().minusDays(1)), orders);
+    }
 
     @Override
     @Transactional(readOnly = true)
     public StatisticsSummaryDTO getSummary(LocalDate start, LocalDate end) {
-        validateRange(start, end);
+        DateRange range = new DateRange(start, end);
 
-        Integer deliveredOrders = statisticsRepository.countDeliveredOrders(start, end);
-        Integer soldEmpanadas = statisticsRepository.countSoldEmpanadas(start, end);
-        BigDecimal totalSales = statisticsRepository.sumTotalSales(start, end);
+        Integer deliveredOrders = statisticsRepository.countDeliveredOrders(range.from(), range.until());
+        Integer soldEmpanadas = statisticsRepository.countSoldEmpanadas(range.from(), range.until());
+        BigDecimal totalSales = statisticsRepository.sumTotalSales(range.from(), range.until());
 
         BigDecimal averageTicket = calculateAverageTicket(totalSales, deliveredOrders);
 
         List<StatisticsSummaryDTO.VarietyRankingDTO> varietyRanking =
-                statisticsRepository.getVarietyRanking(start, end);
+                statisticsRepository.getVarietyRanking(range.from(), range.until());
 
         StatisticsSummaryDTO.BestSellingVarietyDTO bestSellingVariety =
                 varietyRanking.isEmpty()
@@ -45,16 +81,16 @@ public class StatisticsService implements IStatisticsService {
                         );
 
         List<StatisticsSummaryDTO.SalesByWeekdayDTO> salesByWeekday =
-                statisticsRepository.getSalesByWeekday(start, end);
+                statisticsRepository.getSalesByWeekday(range.from(), range.until());
 
         List<StatisticsSummaryDTO.SaleTypeSummaryDTO> saleTypes =
-                statisticsRepository.getSaleTypes(start, end);
+                statisticsRepository.getSaleTypes(range.from(), range.until());
 
         List<StatisticsSummaryDTO.PaymentMethodSummaryDTO> paymentMethods =
-                statisticsRepository.getPaymentMethods(start, end);
+                statisticsRepository.getPaymentMethods(range.from(), range.until());
 
         List<StatisticsSummaryDTO.WasteByVarietyDTO> wasteByVariety =
-                statisticsRepository.getWasteByVariety(start, end);
+                statisticsRepository.getWasteByVariety(range.from(), range.until());
 
         return new StatisticsSummaryDTO(
                 deliveredOrders,
@@ -70,16 +106,6 @@ public class StatisticsService implements IStatisticsService {
     }
 
 	//mertodos privados para validaciones y cálculos
-
-    private void validateRange(LocalDate start, LocalDate end) {
-        if (start == null || end == null) {
-            throw new InvalidStatisticsRangeException("Las fechas desde y hasta son obligatorias");
-        }
-
-        if (!start.isBefore(end)) {
-            throw new InvalidStatisticsRangeException("La fecha desde debe ser menor que la fecha hasta");
-        }
-    }
 
     private BigDecimal calculateAverageTicket(BigDecimal totalSales, Integer deliveredOrders) {
         if (deliveredOrders == null || deliveredOrders == 0) {

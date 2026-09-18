@@ -2,7 +2,10 @@ package com.bienCriollas.stock.order.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import com.bienCriollas.stock.order.enums.OrderStatus;
@@ -21,7 +24,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -36,6 +41,8 @@ import lombok.Setter;
 @Builder
 
 public class Order {
+
+    private static final ZoneId ARGENTINA_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     @Id
     @GeneratedValue(generator = "id_pedido", strategy = GenerationType.IDENTITY)
@@ -95,6 +102,11 @@ public class Order {
     @JsonProperty("fechaCreacion")
     private LocalDate creationDate;
 
+    @Column(name = "created_at", updatable = false)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Setter(AccessLevel.NONE)
+    private LocalDateTime createdAt;
+
     @Column(name = "fecha_entrega")
     @JsonProperty("fechaEntrega")
     private LocalDate deliveryDate;
@@ -111,5 +123,8 @@ public class Order {
     @JsonProperty("detalles")
     private List<OrderDetail> details = new ArrayList<>();
 
-  
+    @PrePersist
+    void prePersist() {
+        createdAt = LocalDateTime.now(ARGENTINA_ZONE).truncatedTo(ChronoUnit.SECONDS);
+    }
 }

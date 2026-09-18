@@ -280,6 +280,9 @@ Los módulos existentes utilizan `/api/v2`. Producción expone Ingredientes en
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/resumen?desde=2026-08-01&hasta=2026-08-31` | Devuelve métricas consolidadas del período. |
+| `GET` | `/clientes-ranking?periodo=MES&mes=2026-09&orden=IMPORTE&limit=5` | Ranking de clientes particulares con pedidos entregados; admite día, últimos 7 días y mes. |
+
+Contrato detallado del ranking: [docs/customer-ranking.md](docs/customer-ranking.md).
 
 ## Valores del dominio
 
