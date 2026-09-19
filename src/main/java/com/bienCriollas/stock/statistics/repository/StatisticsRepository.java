@@ -21,19 +21,22 @@ public class StatisticsRepository {
     public List<OrderCustomerSale> getDeliveredParticularCustomerSales(LocalDate start, LocalDate end) {
         // One row per order prevents its amount/count from being multiplied by its details.
         String sql = """
-                SELECT p.id_pedido, p.nombre_cliente, p.fecha_pedido, p.total_pedido,
+                SELECT p.id_pedido, p.nombre_cliente,
+                       COALESCE(p.fecha_entrega, p.fecha_pedido) AS fecha_comercial,
+                       p.total_pedido,
                        COALESCE(SUM(dp.cantidad), 0) AS total_unidades
                 FROM pedido p
                 LEFT JOIN pedido_detalle dp ON dp.id_pedido = p.id_pedido
                 WHERE p.tipo_venta = 'PARTICULAR'
                   AND p.estado = 'ENTREGADO'
-                  AND p.fecha_pedido >= ?
-                  AND p.fecha_pedido < ?
-                GROUP BY p.id_pedido, p.nombre_cliente, p.fecha_pedido, p.total_pedido
+                  AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+                  AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
+                GROUP BY p.id_pedido, p.nombre_cliente,
+                         COALESCE(p.fecha_entrega, p.fecha_pedido), p.total_pedido
                 """;
         return jdbcTemplate.query(sql, (rs, rowNum) -> new OrderCustomerSale(
                 rs.getLong("id_pedido"), rs.getString("nombre_cliente"),
-                rs.getObject("fecha_pedido", LocalDate.class), rs.getBigDecimal("total_pedido"),
+                rs.getObject("fecha_comercial", LocalDate.class), rs.getBigDecimal("total_pedido"),
                 rs.getLong("total_unidades")), start, end);
     }
 
@@ -62,8 +65,8 @@ public class StatisticsRepository {
             SELECT COALESCE(COUNT(*), 0)
             FROM pedido
             WHERE estado = 'ENTREGADO'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, Integer.class, start, end);
@@ -75,8 +78,8 @@ public class StatisticsRepository {
             FROM pedido_detalle dp
             INNER JOIN pedido p ON p.id_pedido = dp.id_pedido
             WHERE p.estado = 'ENTREGADO'
-              AND p.fecha_pedido >= ?
-              AND p.fecha_pedido < ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, Integer.class, start, end);
@@ -87,8 +90,8 @@ public class StatisticsRepository {
             SELECT COALESCE(SUM(total_pedido), 0)
             FROM pedido
             WHERE estado = 'ENTREGADO'
-              AND fecha_pedido >= ?
-              AND fecha_pedido < ?
+              AND COALESCE(fecha_entrega, fecha_pedido) >= ?
+              AND COALESCE(fecha_entrega, fecha_pedido) < ?
         """;
 
         return jdbcTemplate.queryForObject(sql, BigDecimal.class, start, end);
@@ -107,8 +110,8 @@ public class StatisticsRepository {
             INNER JOIN pedido p ON p.id_pedido = dp.id_pedido
             INNER JOIN variedad_empanada v ON v.id_variedad = dp.id_variedad
             WHERE p.estado = 'ENTREGADO'
-              AND p.fecha_pedido >= ?
-              AND p.fecha_pedido < ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
             GROUP BY v.id_variedad, v.nombre
             ORDER BY unidades_vendidas DESC
         """;
@@ -138,8 +141,8 @@ public class StatisticsRepository {
         FROM (
             SELECT
                 p.id_pedido,
-                DAYOFWEEK(p.fecha_pedido) AS dia_semana,
-                CASE DAYOFWEEK(p.fecha_pedido)
+                DAYOFWEEK(COALESCE(p.fecha_entrega, p.fecha_pedido)) AS dia_semana,
+                CASE DAYOFWEEK(COALESCE(p.fecha_entrega, p.fecha_pedido))
                     WHEN 1 THEN 'Domingo'
                     WHEN 2 THEN 'Lunes'
                     WHEN 3 THEN 'Martes'
@@ -153,11 +156,11 @@ public class StatisticsRepository {
             FROM pedido p
             LEFT JOIN pedido_detalle dp ON dp.id_pedido = p.id_pedido
             WHERE p.estado = 'ENTREGADO'
-              AND p.fecha_pedido >= ?
-              AND p.fecha_pedido < ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
             GROUP BY
                 p.id_pedido,
-                p.fecha_pedido,
+                COALESCE(p.fecha_entrega, p.fecha_pedido),
                 p.total_pedido
         ) t
         GROUP BY
@@ -190,13 +193,13 @@ public class StatisticsRepository {
                     SELECT COUNT(*)
                     FROM pedido p2
                     WHERE p2.estado = 'ENTREGADO'
-                      AND p2.fecha_pedido >= ?
-                      AND p2.fecha_pedido < ?
+                      AND COALESCE(p2.fecha_entrega, p2.fecha_pedido) >= ?
+                      AND COALESCE(p2.fecha_entrega, p2.fecha_pedido) < ?
                 ), 0), 2) AS porcentaje
             FROM pedido p
             WHERE p.estado = 'ENTREGADO'
-              AND p.fecha_pedido >= ?
-              AND p.fecha_pedido < ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
             GROUP BY p.tipo_venta
         """;
 
@@ -225,13 +228,13 @@ public class StatisticsRepository {
                     SELECT COUNT(*)
                     FROM pedido p2
                     WHERE p2.estado = 'ENTREGADO'
-                      AND p2.fecha_pedido >= ?
-                      AND p2.fecha_pedido < ?
+                      AND COALESCE(p2.fecha_entrega, p2.fecha_pedido) >= ?
+                      AND COALESCE(p2.fecha_entrega, p2.fecha_pedido) < ?
                 ), 0), 2) AS porcentaje
             FROM pedido p
             WHERE p.estado = 'ENTREGADO'
-              AND p.fecha_pedido >= ?
-              AND p.fecha_pedido < ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) >= ?
+              AND COALESCE(p.fecha_entrega, p.fecha_pedido) < ?
             GROUP BY p.tipo_pago
         """;
 

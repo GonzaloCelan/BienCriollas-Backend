@@ -133,7 +133,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void preparingScheduledOrderDiscountsStockOnlyOnce() {
+    void preparingAndThenDeliveringScheduledOrderDiscountsStockOnlyOnce() {
         EmpanadaVariety variety = EmpanadaVariety.builder()
                 .varietyId(1L)
                 .name("Carne")
@@ -152,11 +152,39 @@ class OrderServiceTest {
         when(orderRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(order));
 
         orderService.updateOrderStatus(500L, OrderStatus.PREPARADO);
-        orderService.updateOrderStatus(500L, OrderStatus.PREPARADO);
+        orderService.updateOrderStatus(500L, OrderStatus.ENTREGADO);
 
         assertEquals(true, order.getStockDiscounted());
+        assertEquals(OrderStatus.ENTREGADO, order.getStatus());
         verify(stockService, times(1)).adjustAvailability(eq(Map.of(1L, -12)));
-        verify(orderRepository, times(1)).save(order);
+        verify(orderRepository, times(2)).save(order);
+    }
+
+    @Test
+    void deliveringPreparedScheduledOrderDiscountsStockWhenItWasStillPending() {
+        EmpanadaVariety variety = EmpanadaVariety.builder()
+                .varietyId(1L)
+                .name("Carne")
+                .build();
+        Order order = Order.builder()
+                .orderId(501L)
+                .status(OrderStatus.PREPARADO)
+                .stockDiscounted(false)
+                .details(new ArrayList<>())
+                .build();
+        order.getDetails().add(OrderDetail.builder()
+                .order(order)
+                .variety(variety)
+                .quantity(12)
+                .build());
+        when(orderRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(order));
+
+        orderService.updateOrderStatus(501L, OrderStatus.ENTREGADO);
+
+        assertEquals(OrderStatus.ENTREGADO, order.getStatus());
+        assertEquals(true, order.getStockDiscounted());
+        verify(stockService, times(1)).adjustAvailability(eq(Map.of(1L, -12)));
+        verify(orderRepository).save(order);
     }
 
     @Test
@@ -172,7 +200,65 @@ class OrderServiceTest {
         orderService.updateOrderStatus(500L, OrderStatus.CANCELADO);
 
         assertEquals(OrderStatus.CANCELADO, order.getStatus());
+        assertEquals(false, order.getStockDiscounted());
         verify(stockService, never()).adjustAvailability(any());
+    }
+
+    @Test
+    void cancellingDiscountedPendingOrderReturnsItsStock() {
+        EmpanadaVariety variety = EmpanadaVariety.builder().varietyId(1L).name("Carne").build();
+        Order order = orderWithStock(502L, OrderStatus.PENDIENTE, true, null, variety, 12);
+        when(orderRepository.findByIdForUpdate(502L)).thenReturn(Optional.of(order));
+
+        orderService.updateOrderStatus(502L, OrderStatus.CANCELADO);
+
+        assertEquals(OrderStatus.CANCELADO, order.getStatus());
+        assertEquals(false, order.getStockDiscounted());
+        verify(stockService).adjustAvailability(eq(Map.of(1L, 12)));
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    void cancellingPreparedNormalAndScheduledOrdersKeepsTheirStockDiscounted() {
+        EmpanadaVariety variety = EmpanadaVariety.builder().varietyId(1L).name("Carne").build();
+        Order normal = orderWithStock(503L, OrderStatus.PREPARADO, true, null, variety, 12);
+        Order scheduled = orderWithStock(504L, OrderStatus.PREPARADO, true,
+                LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires")).plusDays(1),
+                variety, 24);
+        when(orderRepository.findByIdForUpdate(503L)).thenReturn(Optional.of(normal));
+        when(orderRepository.findByIdForUpdate(504L)).thenReturn(Optional.of(scheduled));
+
+        orderService.updateOrderStatus(503L, OrderStatus.CANCELADO);
+        orderService.updateOrderStatus(504L, OrderStatus.CANCELADO);
+
+        assertEquals(OrderStatus.CANCELADO, normal.getStatus());
+        assertEquals(OrderStatus.CANCELADO, scheduled.getStatus());
+        assertEquals(true, normal.getStockDiscounted());
+        assertEquals(true, scheduled.getStockDiscounted());
+        verify(stockService, never()).adjustAvailability(any());
+        verify(orderRepository).save(normal);
+        verify(orderRepository).save(scheduled);
+    }
+
+    private Order orderWithStock(Long id, OrderStatus status, boolean stockDiscounted,
+            LocalDate deliveryDate, EmpanadaVariety variety, int quantity) {
+        Order order = Order.builder()
+                .orderId(id)
+                .status(status)
+                .saleType(SaleType.PARTICULAR)
+                .stockDiscounted(stockDiscounted)
+                .deliveryDate(deliveryDate)
+                .cashAmount(new BigDecimal("1000"))
+                .transferAmount(BigDecimal.ZERO)
+                .orderTotal(new BigDecimal("1000"))
+                .details(new ArrayList<>())
+                .build();
+        order.getDetails().add(OrderDetail.builder()
+                .order(order)
+                .variety(variety)
+                .quantity(quantity)
+                .build());
+        return order;
     }
 
     @Test

@@ -157,7 +157,7 @@ class AnnualStatisticsIntegrationTest {
                      total_pedido, estado, fecha_pedido, fecha_entrega, created_at, stock_discounted)
                 VALUES (?, 'PARTICULAR', 'EFECTIVO', ?, 0, ?, ?, ?, ?, ?, false)
                 """, name, new BigDecimal(amount), new BigDecimal(amount), state,
-                createdAt.toLocalDate(), createdAt.toLocalDate().plusDays(2), createdAt);
+                createdAt.toLocalDate(), null, createdAt);
         return jdbcTemplate.queryForObject("SELECT MAX(id_pedido) FROM pedido", Long.class);
     }
 

@@ -300,10 +300,14 @@ public class OrderService implements IOrderService {
         }
 
         if (newStatus == OrderStatus.CANCELADO) {
-            if (!Boolean.FALSE.equals(order.getStockDiscounted())) {
-                returnStockForCancellation(order);
+            // Un pedido preparado ya fue elaborado: al cancelarlo se pierde el producto
+            // y el stock físico debe permanecer descontado. Solo un pendiente libera stock.
+            if (previousStatus == OrderStatus.PENDIENTE) {
+                if (!Boolean.FALSE.equals(order.getStockDiscounted())) {
+                    returnStockForCancellation(order);
+                }
+                order.setStockDiscounted(false);
             }
-            order.setStockDiscounted(false);
 
             // ✅ Si es PEDIDOS_YA, liberamos el número para poder reutilizarlo
             if (order.getSaleType() == SaleType.PEDIDOS_YA) {

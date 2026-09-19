@@ -28,7 +28,7 @@ El resto de sus campos conserva el contrato existente. Ranking siempre ordena po
 
 Resumen conserva su JSON actual, sin agregar campos. El filtro anual se aplica a todas sus métricas: pedidos entregados, empanadas vendidas, ticket promedio, variedad más vendida, ranking de variedades, ventas por día de semana, tipos de venta, medios de pago y mermas por variedad.
 
-Las fuentes temporales de cada estadística se conservan: Resumen y Ranking usan `fechaPedido`, Hora Pico usa `createdAt`, y las mermas del Resumen usan `fechaRegistro`. No se modifican pedidos ni datos históricos y no requiere migraciones.
+Resumen y Ranking usan `fechaEntrega` para pedidos programados y `fechaPedido` cuando no existe fecha de entrega, igual que Ingresos. Hora Pico conserva `createdAt` porque mide la hora real en que ingresó el pedido; las mermas del Resumen usan `fechaRegistro`. No se modifican pedidos ni datos históricos y no requiere migraciones.
 
 ## Compatibilidad de filtros
 

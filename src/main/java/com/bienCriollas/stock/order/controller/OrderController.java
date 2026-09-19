@@ -82,7 +82,7 @@ public class OrderController {
 
 
     @PutMapping("/actualizar-estado/{id}/{nuevoEstado}")
-    @Operation(summary = "Cambiar el estado de un pedido", description = "Actualiza el estado y notifica el cambio en /topic/pedidos.")
+    @Operation(summary = "Cambiar el estado de un pedido", description = "Actualiza el estado y notifica el cambio en /topic/pedidos. Cancelar un PENDIENTE libera el stock; cancelar un PREPARADO conserva el stock descontado porque el producto ya fue elaborado.")
     public ResponseEntity<Boolean> updateOrderStatus(
             @PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
             @PathVariable("nuevoEstado") @Parameter(description = "PENDIENTE, PREPARADO, ENTREGADO o CANCELADO", example = "PREPARADO") String newStatus) {

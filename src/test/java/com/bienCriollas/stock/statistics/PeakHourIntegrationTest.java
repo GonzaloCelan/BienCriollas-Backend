@@ -200,8 +200,8 @@ class PeakHourIntegrationTest {
     void existingSummaryKeepsItsInclusiveStartAndExclusiveEnd() throws Exception {
         long included = sale(DATE.atTime(12, 0), "100", "ENTREGADO", "PARTICULAR");
         long excluded = sale(DATE.atTime(13, 0), "1000", "ENTREGADO", "PARTICULAR");
-        jdbcTemplate.update("UPDATE pedido SET fecha_pedido = ? WHERE id_pedido = ?", DATE, included);
-        jdbcTemplate.update("UPDATE pedido SET fecha_pedido = ? WHERE id_pedido = ?", DATE.plusDays(1), excluded);
+        jdbcTemplate.update("UPDATE pedido SET fecha_pedido = ?, fecha_entrega = NULL WHERE id_pedido = ?", DATE, included);
+        jdbcTemplate.update("UPDATE pedido SET fecha_pedido = ?, fecha_entrega = NULL WHERE id_pedido = ?", DATE.plusDays(1), excluded);
 
         mockMvc.perform(get("/api/v2/estadisticas/resumen")
                 .param("desde", DATE.toString()).param("hasta", DATE.plusDays(1).toString()).with(admin()))

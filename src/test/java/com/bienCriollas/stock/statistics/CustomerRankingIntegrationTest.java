@@ -251,7 +251,6 @@ class CustomerRankingIntegrationTest {
     }
 
     private long sale(String name, LocalDate date, String amount, String state, String type) {
-        // Different creation/delivery dates prove that the commercial date is the ranking's source.
         jdbcTemplate.update("""
                 INSERT INTO pedido
                     (nombre_cliente, tipo_venta, tipo_pago, monto_efectivo, monto_transferencia,
@@ -259,7 +258,7 @@ class CustomerRankingIntegrationTest {
                      created_at, stock_discounted)
                 VALUES (?, ?, 'EFECTIVO', ?, 0, ?, ?, ?, ?, ?, ?, false)
                 """, name, type, new BigDecimal(amount), new BigDecimal(amount), state, date,
-                DATE.plusDays(20), LocalTime.of(22, 0), DATE.minusDays(20).atTime(21, 0));
+                null, LocalTime.of(22, 0), DATE.minusDays(20).atTime(21, 0));
         return jdbcTemplate.queryForObject("SELECT MAX(id_pedido) FROM pedido", Long.class);
     }
 

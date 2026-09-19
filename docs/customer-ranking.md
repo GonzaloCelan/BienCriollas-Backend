@@ -28,7 +28,7 @@ GET /api/v2/estadisticas/clientes-ranking?periodo=ANIO&anio=2026&orden=PEDIDOS&l
 ## Reglas
 
 - Solo participan pedidos `PARTICULAR` en estado `ENTREGADO`.
-- La fecha comercial es `fechaPedido`, igual que en `/estadisticas/resumen`. No se utiliza `createdAt` ni `fechaEntrega`. Los pedidos históricos con `createdAt` nulo también participan si su fecha comercial corresponde al período.
+- La fecha comercial es `fechaEntrega` cuando el pedido es programado; si no tiene fecha de entrega, se usa `fechaPedido`. Es la misma regla que emplean `/estadisticas/resumen` e Ingresos. No se utiliza `createdAt` para este ranking. Los pedidos históricos con `createdAt` nulo también participan.
 - Se reutiliza `StatisticsPeriodResolver`: día seleccionado completo; últimos 7 días incluyendo la fecha seleccionada y sus 6 anteriores; mes calendario completo; año calendario completo del 1 de enero al 31 de diciembre. `desde` y `hasta` en la respuesta son inclusivos.
 - Los nombres nulos, vacíos o compuestos exclusivamente por espacios se excluyen de `clientes` y `totalClientes`.
 - Se agrupa ignorando mayúsculas, espacios repetidos (incluyendo espacios Unicode) y diacríticos: `Lucia Fernandez`, `LUCIA FERNANDEZ` y `Lucía Fernández` representan el mismo cliente. No existe una identificación adicional por DNI o teléfono: personas diferentes con el mismo nombre normalizado quedan agrupadas.

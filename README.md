@@ -299,6 +299,9 @@ Filtro anual compartido por Estadísticas: [docs/statistics-year.md](docs/statis
 
 Las fechas se envían en formato `yyyy-MM-dd` y los horarios en formato `HH:mm:ss`.
 
+En las estadísticas comerciales, un pedido programado entregado se atribuye a `fechaEntrega`;
+los pedidos sin programación se atribuyen a `fechaPedido`. Este criterio coincide con Ingresos.
+
 ## Reglas principales de pedidos
 
 - Todo pedido nuevo se crea con estado `PENDIENTE`.
@@ -308,7 +311,8 @@ Las fechas se envían en formato `yyyy-MM-dd` y los horarios en formato `HH:mm:s
 - La edición completa aplica la diferencia neta entre el detalle anterior y el nuevo.
 - La actualización es transaccional: si alguna variedad o cantidad falla, no quedan cambios parciales.
 - Las variedades se bloquean siempre en el mismo orden para evitar condiciones de carrera y deadlocks.
-- Al cancelar un pedido se devuelve su stock disponible.
+- Al cancelar un pedido `PENDIENTE` se libera o devuelve su stock. Si ya estaba `PREPARADO`,
+  el stock permanece descontado porque las empanadas elaboradas se consideran una pérdida.
 - En pagos `EFECTIVO`, el total se asigna a efectivo.
 - En pagos `TRANSFERENCIA`, el total se asigna a transferencia.
 - En pagos `COMBINADO`, efectivo más transferencia deben coincidir exactamente con `totalPedido`.
