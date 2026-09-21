@@ -142,6 +142,9 @@ class OrderServiceTest {
                 .orderId(500L)
                 .status(OrderStatus.PENDIENTE)
                 .stockDiscounted(false)
+                .cashAmount(new BigDecimal("700"))
+                .transferAmount(new BigDecimal("300"))
+                .orderTotal(new BigDecimal("1000"))
                 .details(new ArrayList<>())
                 .build();
         order.getDetails().add(OrderDetail.builder()
@@ -201,6 +204,7 @@ class OrderServiceTest {
 
         assertEquals(OrderStatus.CANCELADO, order.getStatus());
         assertEquals(false, order.getStockDiscounted());
+        assertCancelledMoneyIsZero(order);
         verify(stockService, never()).adjustAvailability(any());
     }
 
@@ -214,6 +218,7 @@ class OrderServiceTest {
 
         assertEquals(OrderStatus.CANCELADO, order.getStatus());
         assertEquals(false, order.getStockDiscounted());
+        assertCancelledMoneyIsZero(order);
         verify(stockService).adjustAvailability(eq(Map.of(1L, 12)));
         verify(orderRepository).save(order);
     }
@@ -235,6 +240,8 @@ class OrderServiceTest {
         assertEquals(OrderStatus.CANCELADO, scheduled.getStatus());
         assertEquals(true, normal.getStockDiscounted());
         assertEquals(true, scheduled.getStockDiscounted());
+        assertCancelledMoneyIsZero(normal);
+        assertCancelledMoneyIsZero(scheduled);
         verify(stockService, never()).adjustAvailability(any());
         verify(orderRepository).save(normal);
         verify(orderRepository).save(scheduled);
@@ -259,6 +266,12 @@ class OrderServiceTest {
                 .quantity(quantity)
                 .build());
         return order;
+    }
+
+    private void assertCancelledMoneyIsZero(Order order) {
+        assertEquals(BigDecimal.ZERO, order.getCashAmount());
+        assertEquals(BigDecimal.ZERO, order.getTransferAmount());
+        assertEquals(BigDecimal.ZERO, order.getOrderTotal());
     }
 
     @Test

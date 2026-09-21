@@ -1,18 +1,20 @@
 package com.bienCriollas.stock.production.dto;
 
 import java.math.BigDecimal;
+import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
 
 public record ProductionIngredientResponseDTO(
         Long ingredientId,
         String ingredientName,
-        BigDecimal expectedQuantityGrams,
-        BigDecimal actualQuantityGrams,
-        BigDecimal differenceGrams,
+        BigDecimal expectedQuantity,
+        BigDecimal actualQuantity,
+        BigDecimal differenceQuantity,
         BigDecimal differencePercentage,
-        BigDecimal costPerGramSnapshot,
+        MeasurementUnit measurementUnit,
+        BigDecimal costPerBaseUnitSnapshot,
         BigDecimal expectedCost,
         BigDecimal actualCost,
-        BigDecimal currentStockGrams,
-        BigDecimal projectedStockGrams,
+        BigDecimal currentStock,
+        BigDecimal projectedStock,
         Boolean enoughStock) {
 }

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,12 +23,14 @@ import com.bienCriollas.stock.production.analytics.repository.ProductionCostSett
 import com.bienCriollas.stock.production.dto.*;
 import com.bienCriollas.stock.production.entity.Production;
 import com.bienCriollas.stock.production.ingredient.entity.Ingredient;
+import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
 import com.bienCriollas.stock.production.ingredient.repository.IngredientRepository;
 import com.bienCriollas.stock.production.interfaces.IProductionService;
 import com.bienCriollas.stock.production.process.entity.*;
 import com.bienCriollas.stock.production.process.enums.ProcessTimeType;
 import com.bienCriollas.stock.production.process.repository.ProductionProcessRepository;
 import com.bienCriollas.stock.production.recipe.entity.*;
+import com.bienCriollas.stock.production.recipe.enums.*;
 import com.bienCriollas.stock.production.recipe.repository.RecipeRepository;
 import com.bienCriollas.stock.production.repository.*;
 import com.bienCriollas.stock.stock.repository.StockRepository;
@@ -80,8 +83,8 @@ class ProductionAnalyticsIntegrationTest {
                 .name("Carne").unitPrice(new BigDecimal("1500"))
                 .halfDozenPrice(new BigDecimal("8000"))
                 .dozenPrice(new BigDecimal("15000")).active(1).build());
-        meat = ingredient("Carne picada", "100000.00", "12500.000");
-        onion = ingredient("Cebolla", "100000.00", "1500.000");
+        meat = ingredient("Carne picada", "100000.00", "12.500000");
+        onion = ingredient("Cebolla", "100000.00", "1.500000");
         createRecipe();
         createProcess();
 
@@ -170,8 +173,9 @@ class ProductionAnalyticsIntegrationTest {
         assertThat(analyticsService.getIngredientDeviations(DATE, DATE))
                 .first().satisfies(deviation -> {
                     assertThat(deviation.ingredientName()).isEqualTo("Carne picada");
-                    assertThat(deviation.totalExpectedGrams()).isEqualByComparingTo("16000.00");
-                    assertThat(deviation.totalActualGrams()).isEqualByComparingTo("16400.00");
+                    assertThat(deviation.measurementUnit()).isEqualTo(MeasurementUnit.GRAM);
+                    assertThat(deviation.totalExpectedQuantity()).isEqualByComparingTo("16000.00");
+                    assertThat(deviation.totalActualQuantity()).isEqualByComparingTo("16400.00");
                     assertThat(deviation.differencePercentage()).isEqualByComparingTo("2.50");
                     assertThat(deviation.additionalCost()).isEqualByComparingTo("5000.00");
                 });
@@ -185,10 +189,41 @@ class ProductionAnalyticsIntegrationTest {
         assertThat(analyticsService.getWorstProductions(DATE, DATE, 1).get(0).productionId())
                 .isEqualTo(inefficientProductionId);
 
-        meat.setCostPerKilogram(new BigDecimal("99999.000"));
+        meat.setCostPerBaseUnit(new BigDecimal("99.999000"));
         ingredientRepository.saveAndFlush(meat);
         assertThat(analyticsService.getProductionDetail(inefficientProductionId)
                 .actualIngredientCost()).isEqualByComparingTo("111000.00");
+    }
+
+    @Test
+    void comparesRecipeStandardAdditionalCostsWithActualProductionCosts() {
+        Recipe recipe = recipeRepository
+                .findByVarietyVarietyIdAndActiveTrue(carne.getVarietyId()).orElseThrow();
+        recipe.setAdditionalCosts(new ArrayList<>());
+        recipe.addAdditionalCost(additionalCost(AdditionalCostType.LABOR,
+                AdditionalCostCalculationMode.FIXED_TOTAL, "Mano de obra", "25000", 1));
+        recipe.addAdditionalCost(additionalCost(AdditionalCostType.PACKAGING,
+                AdditionalCostCalculationMode.PER_UNIT, "Descartables", "10", 2));
+        recipe.addAdditionalCost(additionalCost(AdditionalCostType.ENERGY,
+                AdditionalCostCalculationMode.PERCENTAGE, "Energía", "7", 3));
+        recipeRepository.saveAndFlush(recipe);
+
+        long productionId = createFinalizedProduction(
+                100, 180, 2, 0, null, new BigDecimal("8000.00"));
+        ProductionCostDetailDTO detail = analyticsService.getProductionDetail(productionId);
+
+        assertThat(productionRepository.findById(productionId).orElseThrow()
+                .getEnergyPercentageSnapshot()).isEqualByComparingTo("7.00");
+
+        assertThat(detail.expectedLaborCostForActualOutput()).isEqualByComparingTo("25000.00");
+        assertThat(detail.actualLaborCost()).isEqualByComparingTo("30000.00");
+        assertThat(detail.laborInefficiencyCost()).isEqualByComparingTo("5000.00");
+        assertThat(detail.expectedPackagingCost()).isEqualByComparingTo("1000.00");
+        assertThat(detail.actualPackagingCost()).isEqualByComparingTo("1000.00");
+        assertThat(detail.expectedEnergyCost()).isEqualByComparingTo("9240.00");
+        assertThat(detail.energyCost()).isEqualByComparingTo("9590.00");
+        assertThat(detail.standardTotalCost()).isEqualByComparingTo("141240.00");
+        assertThat(detail.actualTotalCost()).isEqualByComparingTo("146590.00");
     }
 
     @Test
@@ -235,25 +270,33 @@ class ProductionAnalyticsIntegrationTest {
         productionService.finalizeProduction(draft.id());
         Production stored = productionRepository.findById(draft.id()).orElseThrow();
         assertThat(stored.getLaborHourlyCostSnapshot()).isEqualByComparingTo("5000.00");
-        assertThat(stored.getEnergyPercentageSnapshot()).isEqualByComparingTo("6.00");
+        assertThat(stored.getEnergyPercentageSnapshot()).isNotNull();
         return draft.id();
     }
 
     private Ingredient ingredient(String name, String stock, String cost) {
         return ingredientRepository.saveAndFlush(Ingredient.builder().name(name)
-                .currentStockGrams(new BigDecimal(stock))
-                .minimumStockGrams(BigDecimal.ZERO.setScale(2))
-                .costPerKilogram(new BigDecimal(cost)).active(true).build());
+                .measurementUnit(MeasurementUnit.GRAM)
+                .currentStock(new BigDecimal(stock))
+                .minimumStock(BigDecimal.ZERO.setScale(2))
+                .costPerBaseUnit(new BigDecimal(cost)).active(true).build());
     }
 
     private void createRecipe() {
         Recipe recipe = Recipe.builder().variety(carne).version(1).baseYieldUnits(100)
                 .notes("v1").active(true).build();
         recipe.addIngredient(RecipeIngredient.builder().ingredient(meat)
-                .quantityGrams(new BigDecimal("8000.00")).build());
+                .quantity(new BigDecimal("8000.00")).build());
         recipe.addIngredient(RecipeIngredient.builder().ingredient(onion)
-                .quantityGrams(new BigDecimal("4000.00")).build());
+                .quantity(new BigDecimal("4000.00")).build());
         recipeRepository.saveAndFlush(recipe);
+    }
+
+    private RecipeAdditionalCost additionalCost(
+            AdditionalCostType type, AdditionalCostCalculationMode mode,
+            String name, String value, int order) {
+        return RecipeAdditionalCost.builder().costType(type).calculationMode(mode)
+                .name(name).value(new BigDecimal(value)).sortOrder(order).active(true).build();
     }
 
     private void createProcess() {

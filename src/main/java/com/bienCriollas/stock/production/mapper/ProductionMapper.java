@@ -18,11 +18,13 @@ public interface ProductionMapper {
     @Mapping(target = "wasteReason", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "ingredients", ignore = true)
+    @Mapping(target = "additionalCosts", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "finalizedAt", ignore = true)
     @Mapping(target = "laborHourlyCostSnapshot", ignore = true)
     @Mapping(target = "energyPercentageSnapshot", ignore = true)
+    @Mapping(target = "additionalCostsSnapshotted", ignore = true)
     Production toEntity(ProductionCreateRequestDTO dto);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -34,10 +36,12 @@ public interface ProductionMapper {
     @Mapping(target = "plannedUnits", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "ingredients", ignore = true)
+    @Mapping(target = "additionalCosts", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "finalizedAt", ignore = true)
     @Mapping(target = "laborHourlyCostSnapshot", ignore = true)
     @Mapping(target = "energyPercentageSnapshot", ignore = true)
+    @Mapping(target = "additionalCostsSnapshotted", ignore = true)
     void update(@MappingTarget Production production, ProductionUpdateDTO dto);
 }

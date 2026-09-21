@@ -9,4 +9,5 @@ import com.bienCriollas.stock.production.recipe.entity.RecipeIngredient;
 public interface RecipeIngredientRepository extends JpaRepository<RecipeIngredient, Long> {
     List<RecipeIngredient> findByRecipeId(Long recipeId);
     boolean existsByRecipeIdAndIngredientId(Long recipeId, Long ingredientId);
+    boolean existsByIngredientId(Long ingredientId);
 }

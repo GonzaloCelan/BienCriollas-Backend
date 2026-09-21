@@ -6,7 +6,6 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 
 public record IngredientMinimumStockDTO(
-        @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2)
-        BigDecimal minimumStockGrams
+        @NotNull @DecimalMin("0.0000") @Digits(integer = 15, fraction = 4)
+        BigDecimal minimumStock
 ) {}
-

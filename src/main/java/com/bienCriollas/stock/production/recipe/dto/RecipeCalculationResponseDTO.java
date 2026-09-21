@@ -12,7 +12,8 @@ public record RecipeCalculationResponseDTO(
         Integer requestedUnits,
         BigDecimal scaleFactor,
         List<RecipeCalculatedIngredientDTO> ingredients,
+        List<RecipeAdditionalCostResponseDTO> additionalCosts,
+        RecipeCostSummaryDTO costSummary,
         BigDecimal estimatedTotalCost,
         BigDecimal estimatedCostPerUnit
 ) {}
-

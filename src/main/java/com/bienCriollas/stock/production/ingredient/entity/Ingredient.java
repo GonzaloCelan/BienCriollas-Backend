@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import com.bienCriollas.stock.production.ingredient.exception.IngredientInactiveException;
+import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
 
 @Entity
 @Table(name = "ingredients",
@@ -30,22 +31,41 @@ public class Ingredient {
     private String name;
 
     @NotNull
-    @DecimalMin("0.00")
-    @Digits(integer = 12, fraction = 2)
-    @Column(name = "current_stock_grams", nullable = false, precision = 14, scale = 2)
-    private BigDecimal currentStockGrams;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "measurement_unit", nullable = false, length = 30)
+    private MeasurementUnit measurementUnit;
+
+    @Size(max = 100)
+    @Column(name = "purchase_presentation", length = 100)
+    private String purchasePresentation;
+
+    @DecimalMin(value = "0", inclusive = false)
+    @Digits(integer = 15, fraction = 4)
+    @Column(name = "purchase_quantity", precision = 19, scale = 4)
+    private BigDecimal purchaseQuantity;
+
+    @DecimalMin(value = "0", inclusive = false)
+    @Digits(integer = 17, fraction = 2)
+    @Column(name = "purchase_price", precision = 19, scale = 2)
+    private BigDecimal purchasePrice;
 
     @NotNull
-    @DecimalMin("0.00")
-    @Digits(integer = 12, fraction = 2)
-    @Column(name = "minimum_stock_grams", nullable = false, precision = 14, scale = 2)
-    private BigDecimal minimumStockGrams;
+    @DecimalMin("0.0000")
+    @Digits(integer = 15, fraction = 4)
+    @Column(name = "current_stock", nullable = false, precision = 19, scale = 4)
+    private BigDecimal currentStock;
 
     @NotNull
-    @DecimalMin("0.001")
-    @Digits(integer = 11, fraction = 3)
-    @Column(name = "cost_per_kilogram", nullable = false, precision = 14, scale = 3)
-    private BigDecimal costPerKilogram;
+    @DecimalMin("0.0000")
+    @Digits(integer = 15, fraction = 4)
+    @Column(name = "minimum_stock", nullable = false, precision = 19, scale = 4)
+    private BigDecimal minimumStock;
+
+    @NotNull
+    @DecimalMin("0.000000")
+    @Digits(integer = 13, fraction = 6)
+    @Column(name = "cost_per_base_unit", nullable = false, precision = 19, scale = 6)
+    private BigDecimal costPerBaseUnit;
 
     @Column(nullable = false)
     private Boolean active;
@@ -75,5 +95,11 @@ public class Ingredient {
         if (!Boolean.TRUE.equals(active)) {
             throw new IngredientInactiveException(id);
         }
+    }
+
+    public boolean hasCompletePurchaseData() {
+        return purchasePresentation != null && !purchasePresentation.isBlank()
+                && purchaseQuantity != null && purchaseQuantity.signum() > 0
+                && purchasePrice != null && purchasePrice.signum() > 0;
     }
 }

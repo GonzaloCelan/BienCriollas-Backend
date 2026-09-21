@@ -14,6 +14,7 @@ public record RecipeVersionRequestDTO(
         String notes,
 
         @NotEmpty(message = "La receta debe contener al menos un ingrediente")
-        List<@Valid RecipeIngredientRequestDTO> ingredients
-) {}
+        List<@Valid RecipeIngredientRequestDTO> ingredients,
 
+        List<@Valid RecipeAdditionalCostRequestDTO> additionalCosts
+) {}

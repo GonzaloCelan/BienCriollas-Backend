@@ -6,34 +6,28 @@ import java.math.RoundingMode;
 import org.springframework.stereotype.Component;
 
 import com.bienCriollas.stock.production.analytics.dto.ProductionCostDetailDTO;
-import com.bienCriollas.stock.production.entity.Production;
-import com.bienCriollas.stock.production.entity.ProductionIngredient;
+import com.bienCriollas.stock.production.entity.*;
 import com.bienCriollas.stock.production.process.entity.ProductionProcess;
+import com.bienCriollas.stock.production.recipe.enums.*;
 
 @Component
 public class ProductionCostCalculator {
-
     private static final BigDecimal SIXTY = new BigDecimal("60");
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final int CALCULATION_SCALE = 10;
 
     public ProductionCostDetailDTO calculate(Production production) {
-        BigDecimal expectedIngredientCostRaw = production.getIngredients().stream()
-                .map(item -> item.getExpectedQuantityGrams().multiply(item.getCostPerGramSnapshot()))
+        BigDecimal expectedIngredientRaw = production.getIngredients().stream()
+                .map(item -> item.getExpectedQuantity().multiply(item.getCostPerBaseUnitSnapshot()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal actualIngredientCostRaw = production.getIngredients().stream()
-                .map(item -> actualQuantity(item).multiply(item.getCostPerGramSnapshot()))
+        BigDecimal actualIngredientRaw = production.getIngredients().stream()
+                .map(item -> actualQuantity(item).multiply(item.getCostPerBaseUnitSnapshot()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal expectedIngredientCost = money(expectedIngredientCostRaw);
-        BigDecimal actualIngredientCost = money(actualIngredientCostRaw);
-        BigDecimal ingredientDeviation = money(actualIngredientCostRaw.subtract(expectedIngredientCostRaw));
 
         ProductionProcess process = production.getProcess();
         BigDecimal standardUnitsPerHourRaw = standardUnitsPerHour(process);
         BigDecimal actualUnitsPerHourRaw = actualUnitsPerHour(production);
         BigDecimal productivityVariationRaw = variation(actualUnitsPerHourRaw, standardUnitsPerHourRaw);
-
         BigDecimal standardPersonHoursRaw = standardPersonHours(process);
         BigDecimal actualPersonHoursRaw = actualPersonHours(production);
         BigDecimal standardUnitsPerPersonHourRaw = unitsPerHour(
@@ -46,79 +40,122 @@ public class ProductionCostCalculator {
         BigDecimal expectedPersonHoursRaw = expectedPersonHoursForOutput(
                 production, process, standardPersonHoursRaw);
         BigDecimal hourlyCost = production.getLaborHourlyCostSnapshot();
-        BigDecimal expectedLaborCostRaw = multiply(expectedPersonHoursRaw, hourlyCost);
-        BigDecimal actualLaborCostRaw = multiply(actualPersonHoursRaw, hourlyCost);
-        BigDecimal laborInefficiencyRaw = subtract(actualLaborCostRaw, expectedLaborCostRaw);
+        BigDecimal processExpectedLaborRaw = multiply(expectedPersonHoursRaw, hourlyCost);
+        BigDecimal recipeExpectedLaborRaw = nonPercentageCost(
+                production, AdditionalCostType.LABOR, production.getFinalUnits());
+        BigDecimal expectedLaborRaw = hasType(production, AdditionalCostType.LABOR)
+                ? recipeExpectedLaborRaw : processExpectedLaborRaw;
+        BigDecimal actualLaborRaw = multiply(actualPersonHoursRaw, hourlyCost);
+        BigDecimal laborDeviationRaw = subtract(actualLaborRaw, expectedLaborRaw);
 
-        BigDecimal energyPercentage = production.getEnergyPercentageSnapshot();
-        BigDecimal actualEnergyCostRaw = energyCost(
-                actualIngredientCostRaw, actualLaborCostRaw, energyPercentage);
-        BigDecimal standardEnergyCostRaw = energyCost(
-                expectedIngredientCostRaw, expectedLaborCostRaw, energyPercentage);
-        BigDecimal actualTotalRaw = sum(actualIngredientCostRaw, actualLaborCostRaw, actualEnergyCostRaw);
-        BigDecimal standardTotalRaw = sum(
-                expectedIngredientCostRaw, expectedLaborCostRaw, standardEnergyCostRaw);
+        BigDecimal expectedPackagingRaw = nonPercentageCost(
+                production, AdditionalCostType.PACKAGING, production.getFinalUnits());
+        BigDecimal actualPackagingRaw = expectedPackagingRaw;
+        BigDecimal expectedOtherNonPercentageRaw = nonPercentageCost(
+                production, AdditionalCostType.OTHER, production.getFinalUnits());
+        BigDecimal actualOtherNonPercentageRaw = expectedOtherNonPercentageRaw;
+
+        BigDecimal expectedPercentageBase = sum(expectedIngredientRaw, expectedLaborRaw,
+                expectedPackagingRaw, expectedOtherNonPercentageRaw);
+        BigDecimal actualPercentageBase = sum(actualIngredientRaw, actualLaborRaw,
+                actualPackagingRaw, actualOtherNonPercentageRaw);
+        BigDecimal energyPercentage = percentageFor(
+                production, AdditionalCostType.ENERGY, production.getEnergyPercentageSnapshot());
+        BigDecimal expectedEnergyRaw = percentageCost(expectedPercentageBase, energyPercentage);
+        BigDecimal actualEnergyRaw = percentageCost(actualPercentageBase, energyPercentage);
+        BigDecimal otherPercentage = percentageFor(
+                production, AdditionalCostType.OTHER, BigDecimal.ZERO);
+        BigDecimal expectedOtherPercentageRaw = percentageCost(expectedPercentageBase, otherPercentage);
+        BigDecimal actualOtherPercentageRaw = percentageCost(actualPercentageBase, otherPercentage);
+        BigDecimal expectedOtherRaw = sum(expectedOtherNonPercentageRaw, expectedOtherPercentageRaw);
+        BigDecimal actualOtherRaw = sum(actualOtherNonPercentageRaw, actualOtherPercentageRaw);
+
+        BigDecimal standardTotalRaw = sum(expectedIngredientRaw, expectedLaborRaw,
+                expectedPackagingRaw, expectedOtherRaw, expectedEnergyRaw);
+        BigDecimal actualTotalRaw = sum(actualIngredientRaw, actualLaborRaw,
+                actualPackagingRaw, actualOtherRaw, actualEnergyRaw);
         BigDecimal actualCostPerUnitRaw = perUnit(actualTotalRaw, production.getFinalUnits());
         BigDecimal standardCostPerUnitRaw = perUnit(standardTotalRaw, production.getFinalUnits());
         BigDecimal totalDeviationRaw = subtract(actualTotalRaw, standardTotalRaw);
         BigDecimal deviationPerUnitRaw = subtract(actualCostPerUnitRaw, standardCostPerUnitRaw);
-        BigDecimal estimatedWasteCostRaw = production.getWasteUnits() == null
-                ? null
-                : production.getWasteUnits() == 0
-                        ? BigDecimal.ZERO
-                        : multiply(actualCostPerUnitRaw,
-                                BigDecimal.valueOf(production.getWasteUnits()));
+        BigDecimal estimatedWasteCostRaw = production.getWasteUnits() == null ? null
+                : production.getWasteUnits() == 0 ? BigDecimal.ZERO
+                : multiply(actualCostPerUnitRaw, BigDecimal.valueOf(production.getWasteUnits()));
 
         return new ProductionCostDetailDTO(
-                production.getId(),
-                production.getProductionDate(),
-                production.getVariety().getVarietyId(),
-                production.getVariety().getName(),
-                production.getPlannedUnits(),
-                production.getFinalUnits(),
-                production.getWasteUnits(),
+                production.getId(), production.getProductionDate(),
+                production.getVariety().getVarietyId(), production.getVariety().getName(),
+                production.getPlannedUnits(), production.getFinalUnits(), production.getWasteUnits(),
                 percentage(production.getWasteUnits(), production.getPlannedUnits()),
-                production.getTotalMinutes(),
-                production.getPeopleCount(),
-                expectedIngredientCost,
-                actualIngredientCost,
-                ingredientDeviation,
-                metric(standardUnitsPerHourRaw),
-                metric(actualUnitsPerHourRaw),
-                metric(productivityVariationRaw),
-                metric(standardPersonHoursRaw),
-                metric(actualPersonHoursRaw),
-                metric(standardUnitsPerPersonHourRaw),
-                metric(actualUnitsPerPersonHourRaw),
-                metric(laborVariationRaw),
-                money(hourlyCost),
-                metric(expectedPersonHoursRaw),
-                money(expectedLaborCostRaw),
-                money(actualLaborCostRaw),
-                money(laborInefficiencyRaw),
-                money(actualEnergyCostRaw),
-                money(standardTotalRaw),
-                money(actualTotalRaw),
-                money(standardCostPerUnitRaw),
-                money(actualCostPerUnitRaw),
-                money(totalDeviationRaw),
-                money(deviationPerUnitRaw),
-                money(estimatedWasteCostRaw),
+                production.getTotalMinutes(), production.getPeopleCount(),
+                money(expectedIngredientRaw), money(actualIngredientRaw),
+                money(actualIngredientRaw.subtract(expectedIngredientRaw)),
+                metric(standardUnitsPerHourRaw), metric(actualUnitsPerHourRaw),
+                metric(productivityVariationRaw), metric(standardPersonHoursRaw),
+                metric(actualPersonHoursRaw), metric(standardUnitsPerPersonHourRaw),
+                metric(actualUnitsPerPersonHourRaw), metric(laborVariationRaw), money(hourlyCost),
+                metric(expectedPersonHoursRaw), money(expectedLaborRaw), money(actualLaborRaw),
+                money(laborDeviationRaw), money(expectedPackagingRaw), money(actualPackagingRaw),
+                money(subtract(actualPackagingRaw, expectedPackagingRaw)), money(expectedOtherRaw),
+                money(actualOtherRaw), money(subtract(actualOtherRaw, expectedOtherRaw)),
+                money(expectedEnergyRaw), money(actualEnergyRaw),
+                money(subtract(actualEnergyRaw, expectedEnergyRaw)), money(standardTotalRaw),
+                money(actualTotalRaw), money(standardCostPerUnitRaw), money(actualCostPerUnitRaw),
+                money(totalDeviationRaw), money(deviationPerUnitRaw), money(estimatedWasteCostRaw),
                 performanceStatus(laborVariationRaw));
+    }
+
+    private boolean hasType(Production production, AdditionalCostType type) {
+        return production.getAdditionalCosts().stream().anyMatch(item -> item.getCostType() == type);
+    }
+
+    private BigDecimal nonPercentageCost(
+            Production production, AdditionalCostType type, Integer unitsValue) {
+        if (unitsValue == null) return null;
+        BigDecimal units = BigDecimal.valueOf(unitsValue);
+        BigDecimal baseYield = BigDecimal.valueOf(production.getRecipe().getBaseYieldUnits());
+        BigDecimal result = BigDecimal.ZERO;
+        for (ProductionAdditionalCost item : production.getAdditionalCosts()) {
+            if (item.getCostType() != type
+                    || item.getCalculationModeSnapshot() == AdditionalCostCalculationMode.PERCENTAGE) {
+                continue;
+            }
+            if (item.getCalculationModeSnapshot() == AdditionalCostCalculationMode.FIXED_TOTAL) {
+                result = result.add(item.getValueSnapshot().multiply(units)
+                        .divide(baseYield, CALCULATION_SCALE, RoundingMode.HALF_UP));
+            } else {
+                result = result.add(item.getValueSnapshot().multiply(units));
+            }
+        }
+        return result;
+    }
+
+    private BigDecimal percentageFor(
+            Production production, AdditionalCostType type, BigDecimal fallback) {
+        BigDecimal result = production.getAdditionalCosts().stream()
+                .filter(item -> item.getCostType() == type
+                        && item.getCalculationModeSnapshot() == AdditionalCostCalculationMode.PERCENTAGE)
+                .map(ProductionAdditionalCost::getValueSnapshot)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return result.signum() == 0 ? fallback : result;
+    }
+
+    private BigDecimal percentageCost(BigDecimal base, BigDecimal percentage) {
+        if (base == null || percentage == null) return null;
+        return base.multiply(percentage)
+                .divide(ONE_HUNDRED, CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal standardUnitsPerHour(ProductionProcess process) {
         if (process == null || process.getReferenceYieldUnits() == null) return null;
-        int totalMinutes = process.getSteps().stream()
-                .mapToInt(step -> step.getEstimatedMinutes()).sum();
+        int totalMinutes = process.getSteps().stream().mapToInt(step -> step.getEstimatedMinutes()).sum();
         if (totalMinutes <= 0) return null;
         return BigDecimal.valueOf(process.getReferenceYieldUnits()).multiply(SIXTY)
                 .divide(BigDecimal.valueOf(totalMinutes), CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal actualUnitsPerHour(Production production) {
-        if (production.getFinalUnits() == null
-                || production.getTotalMinutes() == null
+        if (production.getFinalUnits() == null || production.getTotalMinutes() == null
                 || production.getTotalMinutes() <= 0) return null;
         return BigDecimal.valueOf(production.getFinalUnits()).multiply(SIXTY)
                 .divide(BigDecimal.valueOf(production.getTotalMinutes()),
@@ -128,58 +165,38 @@ public class ProductionCostCalculator {
     private BigDecimal standardPersonHours(ProductionProcess process) {
         if (process == null) return null;
         long personMinutes = process.getSteps().stream()
-                .mapToLong(step -> (long) step.getEstimatedMinutes() * step.getRequiredPeople())
-                .sum();
+                .mapToLong(step -> (long) step.getEstimatedMinutes() * step.getRequiredPeople()).sum();
         if (personMinutes <= 0) return null;
-        return BigDecimal.valueOf(personMinutes)
-                .divide(SIXTY, CALCULATION_SCALE, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(personMinutes).divide(SIXTY, CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal actualPersonHours(Production production) {
-        if (production.getTotalMinutes() == null
-                || production.getPeopleCount() == null
-                || production.getTotalMinutes() <= 0
-                || production.getPeopleCount() <= 0) return null;
+        if (production.getTotalMinutes() == null || production.getPeopleCount() == null
+                || production.getTotalMinutes() <= 0 || production.getPeopleCount() <= 0) return null;
         return BigDecimal.valueOf(production.getTotalMinutes())
                 .multiply(BigDecimal.valueOf(production.getPeopleCount()))
                 .divide(SIXTY, CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal expectedPersonHoursForOutput(
-            Production production,
-            ProductionProcess process,
-            BigDecimal standardPersonHours) {
-        if (production.getFinalUnits() == null
-                || process == null
-                || process.getReferenceYieldUnits() == null
-                || process.getReferenceYieldUnits() <= 0
+            Production production, ProductionProcess process, BigDecimal standardPersonHours) {
+        if (production.getFinalUnits() == null || process == null
+                || process.getReferenceYieldUnits() == null || process.getReferenceYieldUnits() <= 0
                 || standardPersonHours == null) return null;
-        return BigDecimal.valueOf(production.getFinalUnits())
-                .multiply(standardPersonHours)
+        return BigDecimal.valueOf(production.getFinalUnits()).multiply(standardPersonHours)
                 .divide(BigDecimal.valueOf(process.getReferenceYieldUnits()),
                         CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal unitsPerHour(Integer units, BigDecimal hours) {
         if (units == null || hours == null || hours.signum() <= 0) return null;
-        return BigDecimal.valueOf(units)
-                .divide(hours, CALCULATION_SCALE, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(units).divide(hours, CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private BigDecimal variation(BigDecimal actual, BigDecimal standard) {
         if (actual == null || standard == null || standard.signum() <= 0) return null;
         return actual.divide(standard, CALCULATION_SCALE, RoundingMode.HALF_UP)
-                .subtract(BigDecimal.ONE)
-                .multiply(ONE_HUNDRED);
-    }
-
-    private BigDecimal energyCost(
-            BigDecimal ingredientCost,
-            BigDecimal laborCost,
-            BigDecimal energyPercentage) {
-        if (ingredientCost == null || laborCost == null || energyPercentage == null) return null;
-        return ingredientCost.add(laborCost).multiply(energyPercentage)
-                .divide(ONE_HUNDRED, CALCULATION_SCALE, RoundingMode.HALF_UP);
+                .subtract(BigDecimal.ONE).multiply(ONE_HUNDRED);
     }
 
     private BigDecimal perUnit(BigDecimal total, Integer units) {
@@ -190,8 +207,7 @@ public class ProductionCostCalculator {
     private BigDecimal percentage(Integer numerator, Integer denominator) {
         if (numerator == null || denominator == null || denominator <= 0) return null;
         return metric(BigDecimal.valueOf(numerator).multiply(ONE_HUNDRED)
-                .divide(BigDecimal.valueOf(denominator),
-                        CALCULATION_SCALE, RoundingMode.HALF_UP));
+                .divide(BigDecimal.valueOf(denominator), CALCULATION_SCALE, RoundingMode.HALF_UP));
     }
 
     private String performanceStatus(BigDecimal laborVariation) {
@@ -204,9 +220,7 @@ public class ProductionCostCalculator {
     }
 
     private BigDecimal actualQuantity(ProductionIngredient item) {
-        return item.getActualQuantityGrams() == null
-                ? item.getExpectedQuantityGrams()
-                : item.getActualQuantityGrams();
+        return item.getActualQuantity() == null ? item.getExpectedQuantity() : item.getActualQuantity();
     }
 
     private BigDecimal multiply(BigDecimal first, BigDecimal second) {

@@ -16,6 +16,7 @@ import com.bienCriollas.stock.production.analytics.interfaces.IProductionAnalyti
 import com.bienCriollas.stock.production.analytics.repository.ProductionCostSettingsRepository;
 import com.bienCriollas.stock.production.entity.*;
 import com.bienCriollas.stock.production.enums.ProductionStatus;
+import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
 import com.bienCriollas.stock.production.repository.ProductionRepository;
 
 import jakarta.validation.Validator;
@@ -43,6 +44,8 @@ public class ProductionAnalyticsService implements IProductionAnalyticsService {
                 .filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
         BigDecimal totalIngredient = sum(details, ProductionCostDetailDTO::actualIngredientCost);
         BigDecimal totalLabor = sum(details, ProductionCostDetailDTO::actualLaborCost);
+        BigDecimal totalPackaging = sum(details, ProductionCostDetailDTO::actualPackagingCost);
+        BigDecimal totalOther = sum(details, ProductionCostDetailDTO::actualOtherAdditionalCost);
         BigDecimal totalEnergy = sum(details, ProductionCostDetailDTO::energyCost);
         BigDecimal totalProduction = sum(details, ProductionCostDetailDTO::actualTotalCost);
         BigDecimal totalPersonHours = sum(details, ProductionCostDetailDTO::actualPersonHours);
@@ -61,7 +64,8 @@ public class ProductionAnalyticsService implements IProductionAnalyticsService {
 
         return new CostPerformanceSummaryDTO(
                 from, to, (long) details.size(), totalUnits, totalWaste,
-                money(totalIngredient), money(totalLabor), money(totalEnergy),
+                money(totalIngredient), money(totalLabor), money(totalPackaging),
+                money(totalOther), money(totalEnergy),
                 money(totalProduction), money(perUnit(totalProduction, totalUnits)),
                 metric(totalPersonHours), metric(averageUnitsPerPersonHour),
                 metric(averageVariation), money(laborInefficiency), money(wasteCost),
@@ -135,19 +139,22 @@ public class ProductionAnalyticsService implements IProductionAnalyticsService {
     @Override
     public List<IngredientDeviationDTO> getIngredientDeviations(LocalDate from, LocalDate to) {
         List<Production> productions = loadProductions(from, to);
-        Map<Long, IngredientAccumulator> totals = new HashMap<>();
+        Map<IngredientUnitKey, IngredientAccumulator> totals = new HashMap<>();
         for (Production production : productions) {
             for (ProductionIngredient item : production.getIngredients()) {
+                IngredientUnitKey key = new IngredientUnitKey(
+                        item.getIngredient().getId(), item.getMeasurementUnitSnapshot());
                 IngredientAccumulator total = totals.computeIfAbsent(
-                        item.getIngredient().getId(), ignored -> new IngredientAccumulator(
-                                item.getIngredient().getId(), item.getIngredient().getName()));
-                BigDecimal actual = item.getActualQuantityGrams() == null
-                        ? item.getExpectedQuantityGrams() : item.getActualQuantityGrams();
-                total.expected = total.expected.add(item.getExpectedQuantityGrams());
+                        key, ignored -> new IngredientAccumulator(
+                                item.getIngredient().getId(), item.getIngredient().getName(),
+                                item.getMeasurementUnitSnapshot()));
+                BigDecimal actual = item.getActualQuantity() == null
+                        ? item.getExpectedQuantity() : item.getActualQuantity();
+                total.expected = total.expected.add(item.getExpectedQuantity());
                 total.actual = total.actual.add(actual);
                 total.costDeviation = total.costDeviation.add(
-                        actual.subtract(item.getExpectedQuantityGrams())
-                                .multiply(item.getCostPerGramSnapshot()));
+                        actual.subtract(item.getExpectedQuantity())
+                                .multiply(item.getCostPerBaseUnitSnapshot()));
             }
         }
         return totals.values().stream().map(total -> {
@@ -156,8 +163,9 @@ public class ProductionAnalyticsService implements IProductionAnalyticsService {
                     : difference.multiply(ONE_HUNDRED).divide(
                             total.expected, 10, RoundingMode.HALF_UP);
             return new IngredientDeviationDTO(
-                    total.id, total.name, grams(total.expected), grams(total.actual),
-                    grams(difference), metric(percentage), money(total.costDeviation));
+                    total.id, total.name, total.measurementUnit,
+                    quantity(total.expected), quantity(total.actual),
+                    quantity(difference), metric(percentage), money(total.costDeviation));
         }).sorted(Comparator.comparing(
                         IngredientDeviationDTO::additionalCost,
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -274,13 +282,17 @@ public class ProductionAnalyticsService implements IProductionAnalyticsService {
                 .filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
         BigDecimal ingredient = sum(details, ProductionCostDetailDTO::actualIngredientCost);
         BigDecimal labor = sum(details, ProductionCostDetailDTO::actualLaborCost);
+        BigDecimal packaging = sum(details, ProductionCostDetailDTO::actualPackagingCost);
+        BigDecimal other = sum(details, ProductionCostDetailDTO::actualOtherAdditionalCost);
+        BigDecimal energy = sum(details, ProductionCostDetailDTO::energyCost);
         BigDecimal total = sum(details, ProductionCostDetailDTO::actualTotalCost);
         return new VarietyPerformanceDTO(
                 first.varietyId(), first.varietyName(), (long) details.size(), units, waste,
                 planned == 0 ? null : metric(BigDecimal.valueOf(waste)
                         .multiply(ONE_HUNDRED).divide(
                                 BigDecimal.valueOf(planned), 10, RoundingMode.HALF_UP)),
-                money(ingredient), money(labor), money(total), money(perUnit(total, units)),
+                money(ingredient), money(labor), money(packaging), money(other), money(energy),
+                money(total), money(perUnit(total, units)),
                 metric(weightedUnitsPerHour(details)),
                 metric(weightedUnitsPerPersonHour(details)),
                 metric(average(details,
@@ -439,20 +451,24 @@ public class ProductionAnalyticsService implements IProductionAnalyticsService {
         return value == null ? null : value.setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal grams(BigDecimal value) {
-        return value.setScale(2, RoundingMode.HALF_UP);
+    private BigDecimal quantity(BigDecimal value) {
+        return value.setScale(4, RoundingMode.HALF_UP);
     }
+
+    private record IngredientUnitKey(Long ingredientId, MeasurementUnit measurementUnit) {}
 
     private static final class IngredientAccumulator {
         private final Long id;
         private final String name;
+        private final MeasurementUnit measurementUnit;
         private BigDecimal expected = BigDecimal.ZERO;
         private BigDecimal actual = BigDecimal.ZERO;
         private BigDecimal costDeviation = BigDecimal.ZERO;
 
-        private IngredientAccumulator(Long id, String name) {
+        private IngredientAccumulator(Long id, String name, MeasurementUnit measurementUnit) {
             this.id = id;
             this.name = name;
+            this.measurementUnit = measurementUnit;
         }
     }
 

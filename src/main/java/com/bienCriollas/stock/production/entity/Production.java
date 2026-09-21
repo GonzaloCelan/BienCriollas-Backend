@@ -94,6 +94,12 @@ public class Production {
     @Builder.Default
     private List<ProductionIngredient> ingredients = new ArrayList<>();
 
+    @OneToMany(mappedBy = "production", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC, id ASC")
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<ProductionAdditionalCost> additionalCosts = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -114,9 +120,18 @@ public class Production {
     @Column(name = "energy_percentage_snapshot", precision = 6, scale = 2)
     private BigDecimal energyPercentageSnapshot;
 
+    @NotNull
+    @Column(name = "additional_costs_snapshotted", nullable = false)
+    private Boolean additionalCostsSnapshotted;
+
     public void addIngredient(ProductionIngredient ingredient) {
         ingredients.add(ingredient);
         ingredient.setProduction(this);
+    }
+
+    public void addAdditionalCost(ProductionAdditionalCost additionalCost) {
+        additionalCosts.add(additionalCost);
+        additionalCost.setProduction(this);
     }
 
     @PrePersist
@@ -125,6 +140,7 @@ public class Production {
         updatedAt = createdAt;
         if (status == null) status = ProductionStatus.DRAFT;
         if (wasteUnits == null) wasteUnits = 0;
+        if (additionalCostsSnapshotted == null) additionalCostsSnapshotted = false;
     }
 
     @PreUpdate

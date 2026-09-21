@@ -1,5 +1,6 @@
 package com.bienCriollas.stock.production.ingredient.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Comparator;
 import java.util.Locale;
@@ -21,6 +22,8 @@ import com.bienCriollas.stock.production.ingredient.exception.*;
 import com.bienCriollas.stock.production.ingredient.interfaces.IIngredientService;
 import com.bienCriollas.stock.production.ingredient.mapper.IngredientMapper;
 import com.bienCriollas.stock.production.ingredient.repository.IngredientRepository;
+import com.bienCriollas.stock.production.recipe.repository.RecipeIngredientRepository;
+import com.bienCriollas.stock.production.repository.ProductionIngredientRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -28,11 +31,15 @@ import com.bienCriollas.stock.production.ingredient.repository.IngredientReposit
 public class IngredientService implements IIngredientService {
 
     private static final Set<String> SORTABLE_FIELDS = Set.of(
-            "id", "name", "currentStockGrams", "minimumStockGrams",
-            "costPerGram", "costPerKilogram", "active", "createdAt", "updatedAt");
+            "id", "name", "measurementUnit", "purchasePresentation", "purchaseQuantity",
+            "purchasePrice", "currentStock", "minimumStock",
+            "costPerBaseUnit", "active", "createdAt", "updatedAt");
 
     private final IngredientRepository ingredientRepository;
+    private final RecipeIngredientRepository recipeIngredientRepository;
+    private final ProductionIngredientRepository productionIngredientRepository;
     private final IngredientMapper ingredientMapper;
+    private final IngredientPurchaseCostCalculator purchaseCostCalculator;
     private final Validator validator;
 
     @Override
@@ -46,6 +53,8 @@ public class IngredientService implements IIngredientService {
         Ingredient ingredient = ingredientMapper.toEntity(dto);
         ingredient.setName(name);
         ingredient.setActive(true);
+        applyPurchaseData(ingredient, dto.purchasePresentation(), dto.purchaseQuantity(),
+                dto.purchasePrice(), true);
         return save(ingredient);
     }
 
@@ -92,8 +101,11 @@ public class IngredientService implements IIngredientService {
         ingredientRepository.findByNameIgnoreCase(name)
                 .filter(existing -> !existing.getId().equals(id))
                 .ifPresent(existing -> { throw new IngredientAlreadyExistsException(name); });
+        validateMeasurementUnitChange(ingredient, dto);
         ingredientMapper.updateEntityFromDTO(dto, ingredient);
         ingredient.setName(name);
+        applyPurchaseData(ingredient, dto.purchasePresentation(), dto.purchaseQuantity(),
+                dto.purchasePrice(), false);
         return save(ingredient);
     }
 
@@ -102,7 +114,7 @@ public class IngredientService implements IIngredientService {
     public IngredientResponseDTO setStock(Long id, IngredientStockUpdateDTO dto) {
         validate(dto);
         Ingredient ingredient = findForUpdate(id);
-        ingredient.setCurrentStockGrams(dto.stockGrams());
+        ingredient.setCurrentStock(dto.currentStock());
         return save(ingredient);
     }
 
@@ -111,7 +123,7 @@ public class IngredientService implements IIngredientService {
     public IngredientResponseDTO increaseStock(Long id, IngredientStockMovementDTO dto) {
         validate(dto);
         Ingredient ingredient = findForUpdate(id);
-        ingredient.setCurrentStockGrams(ingredient.getCurrentStockGrams().add(dto.quantityGrams()));
+        ingredient.setCurrentStock(ingredient.getCurrentStock().add(dto.quantity()));
         return save(ingredient);
     }
 
@@ -121,11 +133,12 @@ public class IngredientService implements IIngredientService {
         validate(dto);
         Ingredient ingredient = findForUpdate(id);
         ingredient.requireActive();
-        if (ingredient.getCurrentStockGrams().compareTo(dto.quantityGrams()) < 0) {
+        if (ingredient.getCurrentStock().compareTo(dto.quantity()) < 0) {
             throw new InsufficientIngredientStockException(
-                    ingredient.getName(), ingredient.getCurrentStockGrams(), dto.quantityGrams());
+                    ingredient.getName(), ingredient.getCurrentStock(), dto.quantity(),
+                    ingredient.getMeasurementUnit());
         }
-        ingredient.setCurrentStockGrams(ingredient.getCurrentStockGrams().subtract(dto.quantityGrams()));
+        ingredient.setCurrentStock(ingredient.getCurrentStock().subtract(dto.quantity()));
         return save(ingredient);
     }
 
@@ -134,7 +147,8 @@ public class IngredientService implements IIngredientService {
     public IngredientResponseDTO updateCost(Long id, IngredientCostUpdateDTO dto) {
         validate(dto);
         Ingredient ingredient = findForUpdate(id);
-        ingredient.setCostPerKilogram(dto.costPerKilogram());
+        applyPurchaseData(ingredient, dto.purchasePresentation(), dto.purchaseQuantity(),
+                dto.purchasePrice(), true);
         return save(ingredient);
     }
 
@@ -143,7 +157,7 @@ public class IngredientService implements IIngredientService {
     public IngredientResponseDTO updateMinimumStock(Long id, IngredientMinimumStockDTO dto) {
         validate(dto);
         Ingredient ingredient = findForUpdate(id);
-        ingredient.setMinimumStockGrams(dto.minimumStockGrams());
+        ingredient.setMinimumStock(dto.minimumStock());
         return save(ingredient);
     }
 
@@ -228,11 +242,47 @@ public class IngredientService implements IIngredientService {
         });
     }
 
+    private void validateMeasurementUnitChange(
+            Ingredient ingredient, IngredientRequestDTO dto) {
+        if (ingredient.getMeasurementUnit() == dto.measurementUnit()) {
+            return;
+        }
+        boolean alreadyUsed = ingredient.getCurrentStock().signum() != 0
+                || recipeIngredientRepository.existsByIngredientId(ingredient.getId())
+                || productionIngredientRepository.existsByIngredientId(ingredient.getId());
+        if (alreadyUsed) {
+            throw new InvalidIngredientException(
+                    "La unidad de medida no puede cambiarse porque el ingrediente ya tiene "
+                            + "stock, recetas o producciones asociadas.");
+        }
+    }
+
+    private void applyPurchaseData(Ingredient ingredient, String presentation,
+            BigDecimal quantity, BigDecimal price, boolean required) {
+        boolean anyValueProvided = presentation != null || quantity != null || price != null;
+        if (!anyValueProvided && !required) {
+            return;
+        }
+        if (presentation == null || presentation.isBlank()) {
+            throw new InvalidIngredientException(
+                    "La presentación de compra es obligatoria.");
+        }
+        if (quantity == null) {
+            throw new InvalidIngredientException(
+                    "La cantidad de la presentación de compra es obligatoria.");
+        }
+        if (price == null) {
+            throw new InvalidIngredientException(
+                    "El precio de la presentación de compra es obligatorio.");
+        }
+        ingredient.setPurchasePresentation(presentation.strip());
+        ingredient.setPurchaseQuantity(quantity);
+        ingredient.setPurchasePrice(price);
+        ingredient.setCostPerBaseUnit(purchaseCostCalculator.calculate(price, quantity));
+    }
+
     private Pageable toPersistencePageable(Pageable pageable) {
-        Sort sort = Sort.by(pageable.getSort().stream()
-                .map(order -> "costPerGram".equals(order.getProperty())
-                        ? order.withProperty("costPerKilogram") : order)
-                .toList());
+        Sort sort = Sort.by(pageable.getSort().stream().toList());
         return pageable.isPaged()
                 ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort)
                 : Pageable.unpaged(sort);

@@ -10,8 +10,9 @@ public record RecipeIngredientRequestDTO(
         Long ingredientId,
 
         @NotNull(message = "La cantidad es obligatoria")
-        @DecimalMin(value = "0.01", message = "La cantidad debe ser mayor a 0 gramos")
-        @Digits(integer = 12, fraction = 2, message = "La cantidad admite hasta 12 enteros y 2 decimales")
-        BigDecimal quantityGrams
+        @DecimalMin(value = "0.0000", inclusive = false,
+                message = "La cantidad debe ser mayor a 0")
+        @Digits(integer = 15, fraction = 4,
+                message = "La cantidad admite hasta 15 enteros y 4 decimales")
+        BigDecimal quantity
 ) {}
-

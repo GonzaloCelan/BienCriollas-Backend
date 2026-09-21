@@ -27,7 +27,9 @@ import com.bienCriollas.stock.production.mapper.ProductionMapper;
 import com.bienCriollas.stock.production.process.entity.ProductionProcess;
 import com.bienCriollas.stock.production.process.repository.ProductionProcessRepository;
 import com.bienCriollas.stock.production.recipe.entity.*;
+import com.bienCriollas.stock.production.recipe.enums.AdditionalCostType;
 import com.bienCriollas.stock.production.recipe.repository.RecipeRepository;
+import com.bienCriollas.stock.production.recipe.service.RecipeCostCalculator;
 import com.bienCriollas.stock.production.repository.*;
 import com.bienCriollas.stock.stock.dto.StockDTO;
 import com.bienCriollas.stock.stock.interfaces.IStockService;
@@ -43,7 +45,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ProductionService implements IProductionService {
 
-    private static final BigDecimal ONE_THOUSAND = new BigDecimal("1000");
     private static final BigDecimal SIXTY = new BigDecimal("60");
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final Set<String> SORTABLE_FIELDS = Set.of(
@@ -61,6 +62,7 @@ public class ProductionService implements IProductionService {
     private final ProductionMapper productionMapper;
     private final Validator validator;
     private final ProductionCostSettingsRepository costSettingsRepository;
+    private final RecipeCostCalculator recipeCostCalculator;
 
     @Override
     @Transactional
@@ -81,19 +83,39 @@ public class ProductionService implements IProductionService {
         production.setWasteUnits(0);
         production.setNotes(normalizeOptional(production.getNotes()));
         production.setIngredients(new ArrayList<>());
+        production.setAdditionalCosts(new ArrayList<>());
+        production.setAdditionalCostsSnapshotted(true);
 
         BigDecimal planned = BigDecimal.valueOf(dto.plannedUnits());
         BigDecimal baseYield = BigDecimal.valueOf(recipe.getBaseYieldUnits());
+        BigDecimal expectedIngredientCost = BigDecimal.ZERO;
         for (RecipeIngredient recipeIngredient : recipe.getIngredients()) {
             Ingredient ingredient = recipeIngredient.getIngredient();
-            BigDecimal expected = recipeIngredient.getQuantityGrams()
+            BigDecimal expected = recipeIngredient.getQuantity()
                     .multiply(planned)
-                    .divide(baseYield, 2, RoundingMode.HALF_UP);
+                    .divide(baseYield, 4, RoundingMode.HALF_UP);
             production.addIngredient(ProductionIngredient.builder()
                     .ingredient(ingredient)
-                    .expectedQuantityGrams(expected)
-                    .actualQuantityGrams(null)
-                    .costPerGramSnapshot(costPerGram(ingredient))
+                    .expectedQuantity(expected)
+                    .actualQuantity(null)
+                    .costPerBaseUnitSnapshot(ingredient.getCostPerBaseUnit())
+                    .measurementUnitSnapshot(ingredient.getMeasurementUnit())
+                    .build());
+            expectedIngredientCost = expectedIngredientCost.add(
+                    expected.multiply(ingredient.getCostPerBaseUnit()));
+        }
+        Map<Long, BigDecimal> calculatedById = recipeCostCalculator.calculate(
+                recipe, dto.plannedUnits(), expectedIngredientCost).rawAdditionalCostsById();
+        for (RecipeAdditionalCost recipeCost : recipe.getAdditionalCosts()) {
+            if (!Boolean.TRUE.equals(recipeCost.getActive())) continue;
+            production.addAdditionalCost(ProductionAdditionalCost.builder()
+                    .recipeAdditionalCost(recipeCost)
+                    .costType(recipeCost.getCostType())
+                    .nameSnapshot(recipeCost.getName())
+                    .calculationModeSnapshot(recipeCost.getCalculationMode())
+                    .valueSnapshot(recipeCost.getValue())
+                    .calculatedExpectedCostSnapshot(calculatedById.get(recipeCost.getId()))
+                    .sortOrder(recipeCost.getSortOrder())
                     .build());
         }
         return toResponse(productionRepository.saveAndFlush(production));
@@ -157,7 +179,7 @@ public class ProductionService implements IProductionService {
                 .filter(item -> item.getIngredient().getId().equals(dto.ingredientId()))
                 .findFirst()
                 .orElseThrow(() -> new IngredientNotFoundException(dto.ingredientId()));
-        consumption.setActualQuantityGrams(normalizeGrams(dto.actualQuantityGrams()));
+        consumption.setActualQuantity(normalizeQuantity(dto.actualQuantity()));
         productionIngredientRepository.saveAndFlush(consumption);
         return toResponse(findDetailed(productionId));
     }
@@ -183,9 +205,10 @@ public class ProductionService implements IProductionService {
         ProductionIngredient extra = ProductionIngredient.builder()
                 .production(production)
                 .ingredient(ingredient)
-                .expectedQuantityGrams(new BigDecimal("0.00"))
-                .actualQuantityGrams(normalizeGrams(dto.actualQuantityGrams()))
-                .costPerGramSnapshot(costPerGram(ingredient))
+                .expectedQuantity(new BigDecimal("0.0000"))
+                .actualQuantity(normalizeQuantity(dto.actualQuantity()))
+                .costPerBaseUnitSnapshot(ingredient.getCostPerBaseUnit())
+                .measurementUnitSnapshot(ingredient.getMeasurementUnit())
                 .build();
         productionIngredientRepository.saveAndFlush(extra);
         return toResponse(findDetailed(productionId));
@@ -216,7 +239,13 @@ public class ProductionService implements IProductionService {
                 .orElseThrow(() -> new InvalidProductionStateException(
                         "Configurá los costos de producción antes de finalizar la tanda."));
         production.setLaborHourlyCostSnapshot(costSettings.getAverageHourlyLaborCost());
-        production.setEnergyPercentageSnapshot(costSettings.getEnergyPercentage());
+        BigDecimal recipeEnergyPercentage = production.getAdditionalCosts().stream()
+                .filter(item -> item.getCostType() == AdditionalCostType.ENERGY)
+                .map(ProductionAdditionalCost::getValueSnapshot)
+                .findFirst().orElse(null);
+        production.setEnergyPercentageSnapshot((recipeEnergyPercentage == null
+                ? costSettings.getEnergyPercentage() : recipeEnergyPercentage)
+                .setScale(2, RoundingMode.HALF_UP));
 
         List<ProductionIngredient> consumptions = productionIngredientRepository
                 .findByProductionIdOrderByIngredientId(id);
@@ -235,17 +264,18 @@ public class ProductionService implements IProductionService {
         for (ProductionIngredient consumption : consumptions) {
             Ingredient ingredient = byId.get(consumption.getIngredient().getId());
             BigDecimal actual = effectiveActual(consumption);
-            if (ingredient.getCurrentStockGrams().compareTo(actual) < 0) {
+            if (ingredient.getCurrentStock().compareTo(actual) < 0) {
                 throw new InsufficientIngredientStockException(
-                        ingredient.getName(), ingredient.getCurrentStockGrams(), actual);
+                        ingredient.getName(), ingredient.getCurrentStock(), actual,
+                        consumption.getMeasurementUnitSnapshot());
             }
         }
         for (ProductionIngredient consumption : consumptions) {
             Ingredient ingredient = byId.get(consumption.getIngredient().getId());
             BigDecimal actual = effectiveActual(consumption);
-            consumption.setActualQuantityGrams(actual);
+            consumption.setActualQuantity(actual);
             consumption.setIngredient(ingredient);
-            ingredient.setCurrentStockGrams(ingredient.getCurrentStockGrams().subtract(actual));
+            ingredient.setCurrentStock(ingredient.getCurrentStock().subtract(actual));
         }
         ingredientRepository.saveAll(lockedIngredients);
         productionIngredientRepository.saveAll(consumptions);
@@ -279,24 +309,35 @@ public class ProductionService implements IProductionService {
 
     private ProductionResponseDTO toResponse(Production production) {
         List<ProductionIngredientResponseDTO> ingredients = new ArrayList<>();
+        List<ProductionAdditionalCostResponseDTO> additionalCosts = production.getAdditionalCosts()
+                .stream()
+                .map(item -> new ProductionAdditionalCostResponseDTO(
+                        item.getId(),
+                        item.getRecipeAdditionalCost() == null
+                                ? null : item.getRecipeAdditionalCost().getId(),
+                        item.getCostType(), item.getNameSnapshot(),
+                        item.getCalculationModeSnapshot(), item.getValueSnapshot(),
+                        money(item.getCalculatedExpectedCostSnapshot()), item.getSortOrder()))
+                .toList();
         BigDecimal expectedTotal = BigDecimal.ZERO;
         BigDecimal actualTotal = BigDecimal.ZERO;
         for (ProductionIngredient item : production.getIngredients()) {
             BigDecimal actual = effectiveActual(item);
-            BigDecimal difference = actual.subtract(item.getExpectedQuantityGrams()).setScale(2);
-            BigDecimal differencePercentage = item.getExpectedQuantityGrams().signum() > 0
+            BigDecimal difference = actual.subtract(item.getExpectedQuantity()).setScale(4);
+            BigDecimal differencePercentage = item.getExpectedQuantity().signum() > 0
                     ? difference.multiply(ONE_HUNDRED)
-                            .divide(item.getExpectedQuantityGrams(), 2, RoundingMode.HALF_UP)
+                            .divide(item.getExpectedQuantity(), 2, RoundingMode.HALF_UP)
                     : null;
-            BigDecimal expectedCost = money(item.getExpectedQuantityGrams()
-                    .multiply(item.getCostPerGramSnapshot()));
-            BigDecimal actualCost = money(actual.multiply(item.getCostPerGramSnapshot()));
-            BigDecimal current = item.getIngredient().getCurrentStockGrams();
-            BigDecimal projected = current.subtract(actual).setScale(2);
+            BigDecimal expectedCost = money(item.getExpectedQuantity()
+                    .multiply(item.getCostPerBaseUnitSnapshot()));
+            BigDecimal actualCost = money(actual.multiply(item.getCostPerBaseUnitSnapshot()));
+            BigDecimal current = item.getIngredient().getCurrentStock();
+            BigDecimal projected = current.subtract(actual).setScale(4);
             ingredients.add(new ProductionIngredientResponseDTO(
                     item.getIngredient().getId(), item.getIngredient().getName(),
-                    item.getExpectedQuantityGrams(), actual, difference,
-                    differencePercentage, item.getCostPerGramSnapshot(), expectedCost,
+                    item.getExpectedQuantity(), actual, difference,
+                    differencePercentage, item.getMeasurementUnitSnapshot(),
+                    item.getCostPerBaseUnitSnapshot(), expectedCost,
                     actualCost, current, projected, current.compareTo(actual) >= 0));
             expectedTotal = expectedTotal.add(expectedCost);
             actualTotal = actualTotal.add(actualCost);
@@ -326,6 +367,7 @@ public class ProductionService implements IProductionService {
                 production.getPlannedUnits(), production.getFinalUnits(), production.getWasteUnits(),
                 production.getWasteReason(), production.getTotalMinutes(), production.getPeopleCount(),
                 production.getStatus(), production.getNotes(), List.copyOf(ingredients),
+                additionalCosts,
                 expectedTotal, actualTotal, costPerUnit, standardRate, actualRate, variation,
                 production.getCreatedAt(), production.getFinalizedAt());
     }
@@ -342,24 +384,20 @@ public class ProductionService implements IProductionService {
     }
 
     private BigDecimal effectiveActual(ProductionIngredient item) {
-        return item.getActualQuantityGrams() == null
-                ? item.getExpectedQuantityGrams() : item.getActualQuantityGrams();
-    }
-
-    private BigDecimal costPerGram(Ingredient ingredient) {
-        return ingredient.getCostPerKilogram().divide(ONE_THOUSAND, 6, RoundingMode.HALF_UP);
+        return item.getActualQuantity() == null
+                ? item.getExpectedQuantity() : item.getActualQuantity();
     }
 
     private BigDecimal money(BigDecimal value) {
         return value.setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal normalizeGrams(BigDecimal value) {
+    private BigDecimal normalizeQuantity(BigDecimal value) {
         try {
-            return value.setScale(2, RoundingMode.UNNECESSARY);
+            return value.setScale(4, RoundingMode.UNNECESSARY);
         } catch (ArithmeticException exception) {
             throw new InvalidProductionException(
-                    "La cantidad real admite como máximo dos decimales.");
+                    "La cantidad real admite como máximo cuatro decimales.");
         }
     }
 
@@ -399,7 +437,7 @@ public class ProductionService implements IProductionService {
         if (dto == null) throw new InvalidProductionException("Los datos del ingrediente son obligatorios.");
         validateBean(dto);
         validateId(dto.ingredientId());
-        normalizeGrams(dto.actualQuantityGrams());
+        normalizeQuantity(dto.actualQuantity());
     }
 
     private void validateBean(Object value) {

@@ -25,6 +25,7 @@ public record ProductionResponseDTO(
         ProductionStatus status,
         String notes,
         List<ProductionIngredientResponseDTO> ingredients,
+        List<ProductionAdditionalCostResponseDTO> additionalCosts,
         BigDecimal expectedIngredientCost,
         BigDecimal actualIngredientCost,
         BigDecimal actualIngredientCostPerUnit,

@@ -61,6 +61,12 @@ public class Recipe {
     @Builder.Default
     private List<RecipeIngredient> ingredients = new ArrayList<>();
 
+    @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC, id ASC")
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<RecipeAdditionalCost> additionalCosts = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -70,6 +76,11 @@ public class Recipe {
     public void addIngredient(RecipeIngredient recipeIngredient) {
         ingredients.add(recipeIngredient);
         recipeIngredient.setRecipe(this);
+    }
+
+    public void addAdditionalCost(RecipeAdditionalCost additionalCost) {
+        additionalCosts.add(additionalCost);
+        additionalCost.setRecipe(this);
     }
 
     @PrePersist
@@ -86,4 +97,3 @@ public class Recipe {
         updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
     }
 }
-

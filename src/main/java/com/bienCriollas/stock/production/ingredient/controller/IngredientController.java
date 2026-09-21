@@ -19,7 +19,7 @@ import com.bienCriollas.stock.production.ingredient.interfaces.IIngredientServic
 @RestController
 @RequestMapping("/api/v1/ingredients")
 @RequiredArgsConstructor
-@Tag(name = "Producción - Ingredientes", description = "Stock de materias primas en gramos y precios por kilogramo.")
+@Tag(name = "Producción - Ingredientes", description = "Stock y costos en la unidad base de cada materia prima.")
 public class IngredientController {
 
     private final IIngredientService ingredientService;
@@ -80,19 +80,19 @@ public class IngredientController {
     }
 
     @PatchMapping("/{id}/stock/increase")
-    @Operation(summary = "Sumar stock en gramos")
+    @Operation(summary = "Sumar stock en la unidad base del ingrediente")
     public ResponseEntity<IngredientResponseDTO> increaseStock(@PathVariable Long id, @Valid @RequestBody IngredientStockMovementDTO dto) {
         return ResponseEntity.ok(ingredientService.increaseStock(id, dto));
     }
 
     @PatchMapping("/{id}/stock/decrease")
-    @Operation(summary = "Descontar stock en gramos")
+    @Operation(summary = "Descontar stock en la unidad base del ingrediente")
     public ResponseEntity<IngredientResponseDTO> decreaseStock(@PathVariable Long id, @Valid @RequestBody IngredientStockMovementDTO dto) {
         return ResponseEntity.ok(ingredientService.decreaseStock(id, dto));
     }
 
     @PatchMapping("/{id}/cost")
-    @Operation(summary = "Actualizar precio por kilogramo")
+    @Operation(summary = "Actualizar presentación y precio de compra; el costo base se recalcula")
     public ResponseEntity<IngredientResponseDTO> updateCost(@PathVariable Long id, @Valid @RequestBody IngredientCostUpdateDTO dto) {
         return ResponseEntity.ok(ingredientService.updateCost(id, dto));
     }

@@ -6,4 +6,5 @@ import com.bienCriollas.stock.production.entity.ProductionIngredient;
 
 public interface ProductionIngredientRepository extends JpaRepository<ProductionIngredient, Long> {
     List<ProductionIngredient> findByProductionIdOrderByIngredientId(Long productionId);
+    boolean existsByIngredientId(Long ingredientId);
 }

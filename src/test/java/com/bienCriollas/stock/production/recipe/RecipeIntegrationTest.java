@@ -18,10 +18,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.bienCriollas.stock.production.ingredient.entity.Ingredient;
+import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
 import com.bienCriollas.stock.production.ingredient.exception.IngredientNotFoundException;
 import com.bienCriollas.stock.production.ingredient.repository.IngredientRepository;
 import com.bienCriollas.stock.production.recipe.dto.*;
 import com.bienCriollas.stock.production.recipe.exception.*;
+import com.bienCriollas.stock.production.recipe.enums.*;
 import com.bienCriollas.stock.production.recipe.interfaces.IRecipeService;
 import com.bienCriollas.stock.production.recipe.repository.RecipeRepository;
 import com.bienCriollas.stock.variety.entity.EmpanadaVariety;
@@ -55,14 +57,14 @@ class RecipeIntegrationTest {
         ingredientRepository.deleteAll();
         varietyRepository.deleteAll();
         carne = variety("Carne");
-        meat = ingredient("Carne picada", "25000", "12500", true);
-        onion = ingredient("Cebolla", "6000", "1350", true);
+        meat = ingredient("Carne picada", "25000", "12.5", true);
+        onion = ingredient("Cebolla", "6000", "1.35", true);
     }
 
     @Test
     void createsFirstRecipeAndCalculatesCurrentEstimatedCostsWithoutChangingStock() {
-        BigDecimal meatStock = meat.getCurrentStockGrams();
-        BigDecimal onionStock = onion.getCurrentStockGrams();
+        BigDecimal meatStock = meat.getCurrentStock();
+        BigDecimal onionStock = onion.getCurrentStock();
 
         RecipeResponseDTO result = service.createRecipe(request(carne.getVarietyId(), 100,
                 "  Receta estándar  ", item(meat, "8000"), item(onion, "4000")));
@@ -74,7 +76,8 @@ class RecipeIntegrationTest {
         assertThat(result.varietyName()).isEqualTo("Carne");
         assertThat(result.ingredients()).extracting(RecipeIngredientResponseDTO::ingredientName)
                 .containsExactly("Carne picada", "Cebolla");
-        assertThat(result.ingredients().get(0).costPerGram()).isEqualByComparingTo("12.5");
+        assertThat(result.ingredients().get(0).currentCostPerBaseUnit()).isEqualByComparingTo("12.5");
+        assertThat(result.ingredients().get(0).measurementUnit()).isEqualTo(MeasurementUnit.GRAM);
         assertThat(result.ingredients().get(0).estimatedCost()).isEqualByComparingTo("100000");
         assertThat(result.ingredients().get(1).estimatedCost()).isEqualByComparingTo("5400");
         assertThat(result.estimatedTotalCost()).isEqualByComparingTo("105400");
@@ -82,9 +85,9 @@ class RecipeIntegrationTest {
         assertThat(result.createdAt()).isNotNull();
         assertThat(result.updatedAt()).isEqualTo(result.createdAt());
 
-        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStockGrams())
+        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(meatStock);
-        assertThat(ingredientRepository.findById(onion.getId()).orElseThrow().getCurrentStockGrams())
+        assertThat(ingredientRepository.findById(onion.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(onionStock);
     }
 
@@ -99,7 +102,7 @@ class RecipeIntegrationTest {
         assertThat(version2.active()).isTrue();
         assertThat(service.getRecipeById(version1.id()).active()).isFalse();
         assertThat(service.getRecipeById(version1.id()).baseYieldUnits()).isEqualTo(100);
-        assertThat(service.getRecipeById(version1.id()).ingredients().get(1).quantityGrams())
+        assertThat(service.getRecipeById(version1.id()).ingredients().get(1).quantity())
                 .isEqualByComparingTo("4000");
         assertThat(service.getRecipeHistory(carne.getVarietyId()))
                 .extracting(RecipeResponseDTO::version).containsExactly(2, 1);
@@ -126,42 +129,128 @@ class RecipeIntegrationTest {
     @Test
     void currentIngredientPriceUpdatesHistoricalEstimatedCosts() {
         RecipeResponseDTO created = createRecipe();
-        BigDecimal stockBefore = meat.getCurrentStockGrams();
-        meat.setCostPerKilogram(new BigDecimal("15000"));
+        BigDecimal stockBefore = meat.getCurrentStock();
+        meat.setCostPerBaseUnit(new BigDecimal("15"));
         ingredientRepository.saveAndFlush(meat);
 
         RecipeResponseDTO currentEstimate = service.getRecipeById(created.id());
-        assertThat(currentEstimate.ingredients().get(0).costPerGram())
+        assertThat(currentEstimate.ingredients().get(0).currentCostPerBaseUnit())
                 .isEqualByComparingTo("15");
         assertThat(currentEstimate.estimatedTotalCost()).isEqualByComparingTo("125400");
-        assertThat(meat.getCurrentStockGrams()).isEqualByComparingTo(stockBefore);
+        assertThat(meat.getCurrentStock()).isEqualByComparingTo(stockBefore);
+    }
+
+    @Test
+    void ingredientPriceChangesRecalculateIngredientsWithoutChangingVersionedAdditionalCosts() {
+        RecipeResponseDTO created = service.createRecipe(requestWithCosts(
+                carne.getVarietyId(), 100, "Con indirectos", List.of(item(meat, "8000")),
+                List.of(cost(AdditionalCostType.LABOR, "Mano de obra",
+                        AdditionalCostCalculationMode.FIXED_TOTAL, "16250", 1))));
+
+        meat.setCostPerBaseUnit(new BigDecimal("15"));
+        ingredientRepository.saveAndFlush(meat);
+        RecipeResponseDTO recalculated = service.getRecipeById(created.id());
+
+        assertThat(recalculated.costSummary().ingredientCost()).isEqualByComparingTo("120000");
+        assertThat(recalculated.additionalCosts().get(0).value()).isEqualByComparingTo("16250");
+        assertThat(recalculated.additionalCosts().get(0).calculatedCost())
+                .isEqualByComparingTo("16250");
+        assertThat(recalculated.estimatedTotalCost()).isEqualByComparingTo("136250");
+    }
+
+    @Test
+    void calculatesFixedPerUnitAndPercentageCostsWithoutCompoundingPercentages() {
+        RecipeResponseDTO result = service.createRecipe(requestWithCosts(
+                carne.getVarietyId(), 100, "Costos completos",
+                List.of(item(meat, "8000"), item(onion, "4000")),
+                List.of(
+                        cost(AdditionalCostType.LABOR, "Mano de obra",
+                                AdditionalCostCalculationMode.FIXED_TOTAL, "16250", 1),
+                        cost(AdditionalCostType.PACKAGING, "Descartables",
+                                AdditionalCostCalculationMode.PER_UNIT, "44.83", 2),
+                        cost(AdditionalCostType.ENERGY, "Energía",
+                                AdditionalCostCalculationMode.PERCENTAGE, "7", 3))));
+
+        assertThat(result.additionalCosts()).extracting(
+                RecipeAdditionalCostResponseDTO::calculatedCost)
+                .containsExactly(new BigDecimal("16250.00"), new BigDecimal("4483.00"),
+                        new BigDecimal("8829.31"));
+        assertThat(result.costSummary().ingredientCost()).isEqualByComparingTo("105400.00");
+        assertThat(result.costSummary().subtotalBeforePercentage())
+                .isEqualByComparingTo("126133.00");
+        assertThat(result.costSummary().estimatedRecipeTotalCost())
+                .isEqualByComparingTo("134962.31");
+        assertThat(result.estimatedTotalCost()).isEqualByComparingTo("134962.31");
+
+        RecipeCalculationResponseDTO scaled = service.calculateRecipe(result.id(), 200);
+        assertThat(scaled.costSummary().estimatedRecipeTotalCost())
+                .isEqualByComparingTo("269924.62");
+        assertThat(scaled.costSummary().estimatedCostPerUnit())
+                .isEqualByComparingTo(result.costSummary().estimatedCostPerUnit());
+    }
+
+    @Test
+    void versionsAdditionalCostsAndKeepsHistoricalValuesImmutable() {
+        RecipeResponseDTO first = service.createRecipe(requestWithCosts(
+                carne.getVarietyId(), 100, "v1", List.of(item(meat, "8000")),
+                List.of(cost(AdditionalCostType.ENERGY, "Energía",
+                        AdditionalCostCalculationMode.PERCENTAGE, "6", 1))));
+
+        RecipeResponseDTO second = service.createNewVersion(first.id(),
+                new RecipeVersionRequestDTO(100, "v2", List.of(item(meat, "8000")),
+                        List.of(cost(AdditionalCostType.ENERGY, "Energía",
+                                AdditionalCostCalculationMode.PERCENTAGE, "7", 1))));
+
+        assertThat(second.additionalCosts().get(0).value()).isEqualByComparingTo("7");
+        assertThat(service.getRecipeById(first.id()).additionalCosts().get(0).value())
+                .isEqualByComparingTo("6");
+    }
+
+    @Test
+    void rejectsInvalidModesPercentagesAndDuplicatedStandardTypes() {
+        assertThatThrownBy(() -> service.createRecipe(requestWithCosts(
+                carne.getVarietyId(), 100, null, List.of(item(meat, "1")),
+                List.of(cost(AdditionalCostType.ENERGY, "Energía",
+                        AdditionalCostCalculationMode.FIXED_TOTAL, "10", 1)))))
+                .isInstanceOf(InvalidRecipeException.class)
+                .hasMessage("El costo de tipo ENERGY debe utilizar PERCENTAGE.");
+
+        assertThatThrownBy(() -> service.createRecipe(requestWithCosts(
+                carne.getVarietyId(), 100, null, List.of(item(meat, "1")),
+                List.of(
+                        cost(AdditionalCostType.LABOR, "Trabajo A",
+                                AdditionalCostCalculationMode.FIXED_TOTAL, "10", 1),
+                        cost(AdditionalCostType.LABOR, "Trabajo B",
+                                AdditionalCostCalculationMode.FIXED_TOTAL, "20", 2)))))
+                .isInstanceOf(InvalidRecipeException.class)
+                .hasMessage("El costo de tipo LABOR está duplicado.");
     }
 
     @Test
     void calculatesScaledRequirementsAvailabilityAndCostWithoutChangingStock() {
         RecipeResponseDTO recipe = createRecipe();
-        BigDecimal meatBefore = meat.getCurrentStockGrams();
-        BigDecimal onionBefore = onion.getCurrentStockGrams();
+        BigDecimal meatBefore = meat.getCurrentStock();
+        BigDecimal onionBefore = onion.getCurrentStock();
 
         RecipeCalculationResponseDTO result = service.calculateRecipe(recipe.id(), 250);
 
         assertThat(result.scaleFactor()).isEqualByComparingTo("2.5");
         assertThat(result.requestedUnits()).isEqualTo(250);
         RecipeCalculatedIngredientDTO calculatedMeat = result.ingredients().get(0);
-        assertThat(calculatedMeat.requiredQuantityGrams()).isEqualByComparingTo("20000");
+        assertThat(calculatedMeat.requiredQuantity()).isEqualByComparingTo("20000");
         assertThat(calculatedMeat.enoughStock()).isTrue();
-        assertThat(calculatedMeat.missingGrams()).isZero();
+        assertThat(calculatedMeat.missingQuantity()).isZero();
         assertThat(calculatedMeat.estimatedCost()).isEqualByComparingTo("250000");
         RecipeCalculatedIngredientDTO calculatedOnion = result.ingredients().get(1);
-        assertThat(calculatedOnion.requiredQuantityGrams()).isEqualByComparingTo("10000");
+        assertThat(calculatedOnion.requiredQuantity()).isEqualByComparingTo("10000");
         assertThat(calculatedOnion.enoughStock()).isFalse();
-        assertThat(calculatedOnion.missingGrams()).isEqualByComparingTo("4000");
+        assertThat(calculatedOnion.missingQuantity()).isEqualByComparingTo("4000");
         assertThat(result.estimatedTotalCost()).isEqualByComparingTo("263500");
         assertThat(result.estimatedCostPerUnit()).isEqualByComparingTo("1054");
 
-        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStockGrams())
+        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(meatBefore);
-        assertThat(ingredientRepository.findById(onion.getId()).orElseThrow().getCurrentStockGrams())
+        assertThat(ingredientRepository.findById(onion.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(onionBefore);
     }
 
@@ -172,8 +261,8 @@ class RecipeIntegrationTest {
         RecipeCalculationResponseDTO result = service.calculateRecipe(recipe.id(), 1);
 
         assertThat(result.scaleFactor()).isEqualByComparingTo("0.333333");
-        assertThat(result.ingredients().get(0).requiredQuantityGrams())
-                .isEqualByComparingTo("0.33");
+        assertThat(result.ingredients().get(0).requiredQuantity())
+                .isEqualByComparingTo("0.3333");
     }
 
     @Test
@@ -197,7 +286,7 @@ class RecipeIntegrationTest {
     @Test
     void failedNewVersionKeepsCurrentRecipeActiveAndLeavesStockUntouched() {
         RecipeResponseDTO current = createRecipe();
-        BigDecimal stockBefore = meat.getCurrentStockGrams();
+        BigDecimal stockBefore = meat.getCurrentStock();
         Ingredient inactive = ingredient("Morrón", "10", "2000", false);
 
         assertThatThrownBy(() -> service.createNewVersion(current.id(),
@@ -206,7 +295,7 @@ class RecipeIntegrationTest {
 
         assertThat(service.getRecipeById(current.id()).active()).isTrue();
         assertThat(service.getRecipeHistory(carne.getVarietyId())).hasSize(1);
-        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStockGrams())
+        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(stockBefore);
     }
 
@@ -235,7 +324,7 @@ class RecipeIntegrationTest {
         assertThatThrownBy(() -> service.createRecipe(request(carne.getVarietyId(), 1, null,
                 item(meat, "0")))).isInstanceOf(InvalidRecipeException.class);
         assertThatThrownBy(() -> service.createRecipe(request(carne.getVarietyId(), 1, null,
-                item(meat, "0.001")))).isInstanceOf(InvalidRecipeException.class);
+                item(meat, "0.00001")))).isInstanceOf(InvalidRecipeException.class);
         assertThatThrownBy(() -> service.getRecipeById(-1L))
                 .isInstanceOf(InvalidRecipeException.class);
         assertThatThrownBy(() -> service.getRecipeById(Long.MAX_VALUE))
@@ -322,7 +411,7 @@ class RecipeIntegrationTest {
                         .param("quantity", "250").with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scaleFactor").value(2.5))
-                .andExpect(jsonPath("$.ingredients[1].missingGrams").value(4000));
+                .andExpect(jsonPath("$.ingredients[1].missingQuantity").value(4000));
 
         mockMvc.perform(post(BASE + "/" + recipeId + "/versions").with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -360,12 +449,26 @@ class RecipeIntegrationTest {
 
     private RecipeRequestDTO request(
             Long varietyId, Integer yield, String notes, RecipeIngredientRequestDTO... items) {
-        return new RecipeRequestDTO(varietyId, yield, notes, List.of(items));
+        return new RecipeRequestDTO(varietyId, yield, notes, List.of(items), List.of());
     }
 
     private RecipeVersionRequestDTO versionRequest(
             Integer yield, String notes, RecipeIngredientRequestDTO... items) {
-        return new RecipeVersionRequestDTO(yield, notes, List.of(items));
+        return new RecipeVersionRequestDTO(yield, notes, List.of(items), List.of());
+    }
+
+    private RecipeRequestDTO requestWithCosts(
+            Long varietyId, Integer yield, String notes,
+            List<RecipeIngredientRequestDTO> ingredients,
+            List<RecipeAdditionalCostRequestDTO> costs) {
+        return new RecipeRequestDTO(varietyId, yield, notes, ingredients, costs);
+    }
+
+    private RecipeAdditionalCostRequestDTO cost(
+            AdditionalCostType type, String name, AdditionalCostCalculationMode mode,
+            String value, int order) {
+        return new RecipeAdditionalCostRequestDTO(
+                type, name, mode, new BigDecimal(value), order, null);
     }
 
     private RecipeIngredientRequestDTO item(Ingredient ingredient, String quantity) {
@@ -396,12 +499,13 @@ class RecipeIntegrationTest {
     }
 
     private Ingredient ingredient(
-            String name, String stock, String costPerKilogram, boolean active) {
+            String name, String stock, String costPerBaseUnit, boolean active) {
         return ingredientRepository.saveAndFlush(Ingredient.builder()
                 .name(name)
-                .currentStockGrams(new BigDecimal(stock))
-                .minimumStockGrams(BigDecimal.ZERO)
-                .costPerKilogram(new BigDecimal(costPerKilogram))
+                .measurementUnit(MeasurementUnit.GRAM)
+                .currentStock(new BigDecimal(stock))
+                .minimumStock(BigDecimal.ZERO)
+                .costPerBaseUnit(new BigDecimal(costPerBaseUnit))
                 .active(active)
                 .build());
     }

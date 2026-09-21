@@ -1,27 +1,17 @@
 # Recetas de Producción
 
-El módulo está en `production/recipe` y define la composición estándar y
-versionada de las variedades existentes. Usa relaciones JPA con
-`EmpanadaVariety` e `Ingredient`; no duplica esos datos.
+Base: `/api/v1/recipes`. Todos los endpoints requieren Bearer JWT.
 
-## Endpoints
-
-La base es `/api/v1/recipes` y todos los endpoints requieren Bearer JWT.
-
-| Método | Ruta relativa | Operación |
+| Método | Ruta | Operación |
 | --- | --- | --- |
-| POST | `/` | Crear la primera receta de una variedad |
-| GET | `/` | Listar recetas activas paginadas |
-| GET | `/{id}` | Obtener una receta activa o histórica |
-| GET | `/variety/{varietyId}` | Obtener la receta activa de una variedad |
-| GET | `/variety/{varietyId}/history` | Historial por versión descendente |
-| GET | `/status?active=true` | Listar recetas por estado |
-| POST | `/{id}/versions` | Crear una nueva versión |
-| GET | `/{id}/calculate?quantity=250` | Simular cantidades, costos y faltantes |
-
-No existe DELETE ni actualización de una versión histórica.
-
-Creación:
+| POST | `/` | Crear primera receta de una variedad |
+| GET | `/` | Listar activas |
+| GET | `/{id}` | Obtener receta activa o histórica |
+| GET | `/variety/{varietyId}` | Obtener receta activa |
+| GET | `/variety/{varietyId}/history` | Obtener versiones |
+| GET | `/status?active=true` | Listar por estado |
+| POST | `/{id}/versions` | Crear versión nueva |
+| GET | `/{id}/calculate?quantity=250` | Simular cantidades, faltantes y costos |
 
 ```json
 {
@@ -29,63 +19,64 @@ Creación:
   "baseYieldUnits": 100,
   "notes": "Receta estándar de carne",
   "ingredients": [
-    {"ingredientId": 1, "quantityGrams": 8000},
-    {"ingredientId": 3, "quantityGrams": 4000}
+    {"ingredientId": 1, "quantity": 8000},
+    {"ingredientId": 3, "quantity": 150},
+    {"ingredientId": 5, "quantity": 4}
+  ],
+  "additionalCosts": [
+    {
+      "costType": "LABOR",
+      "name": "Mano de obra",
+      "calculationMode": "FIXED_TOTAL",
+      "value": 16250,
+      "sortOrder": 1,
+      "notes": null
+    },
+    {
+      "costType": "PACKAGING",
+      "name": "Descartables",
+      "calculationMode": "PER_UNIT",
+      "value": 44.83,
+      "sortOrder": 2,
+      "notes": null
+    },
+    {
+      "costType": "ENERGY",
+      "name": "Energía",
+      "calculationMode": "PERCENTAGE",
+      "value": 7,
+      "sortOrder": 3,
+      "notes": null
+    }
   ]
 }
 ```
 
-Para crear una versión nueva se usa el mismo contenido sin `varietyId`. La
-variedad se toma de la receta indicada en la URL. POST devuelve 201 y `Location`.
+`additionalCosts` puede omitirse o enviarse vacío. `LABOR` usa `FIXED_TOTAL`,
+`PACKAGING` usa `PER_UNIT`, `ENERGY` usa `PERCENTAGE` y `OTHER` admite cualquier
+modo. Solo `OTHER` puede repetirse. Todo valor debe ser mayor que cero y los
+porcentajes no pueden superar 100.
 
-Los listados aceptan `page`, `size` y `sort`. El orden predeterminado es por
-nombre de variedad e id. Los campos permitidos son `id`, `varietyName`,
-`version`, `baseYieldUnits`, `active`, `createdAt` y `updatedAt`.
+`quantity` utiliza la unidad base definida por el ingrediente. La receta no
+duplica la unidad. Las respuestas incluyen `measurementUnit` y
+`currentCostPerBaseUnit` para que el frontend pueda mostrar `g`, `ml` o `u`.
 
-## Reglas
+La fórmula de escalado es
+`requiredQuantity = quantity * requestedUnits / baseYieldUnits`, con cuatro
+decimales. El costo estimado es
+`requiredQuantity * currentCostPerBaseUnit`. Consultar o calcular una receta
+no descuenta stock.
 
-- La variedad y todos los ingredientes deben existir.
-- Los ingredientes deben estar activos al crear cada versión y no pueden repetirse.
-- La receta requiere al menos un ingrediente; gramos y rendimiento deben ser positivos.
-- La primera versión es 1. Cada cambio crea la versión máxima más uno, desactiva
-  la vigente y deja activa la nueva. Las versiones anteriores no se modifican.
-- Solo puede haber una versión activa por variedad. La aplicación bloquea la
-  variedad durante la creación y la base refuerza la regla con un índice único.
-- Los ingredientes se bloquean en lectura mientras se valida una nueva versión,
-  evitando que sean desactivados antes del commit.
-- Crear, consultar, versionar y calcular nunca modifica el stock.
-- Los costos son estimaciones actuales. Se calculan con `costPerKilogram / 1000`
-  y pueden cambiar cuando cambia el precio actual del ingrediente.
+La respuesta incluye `additionalCosts[].calculatedCost` y `costSummary`.
+Los porcentajes se calculan una sola vez sobre ingredientes más costos fijos y
+por unidad; no se componen entre sí. `estimatedTotalCost` y
+`estimatedCostPerUnit` se conservan por compatibilidad y contienen el total
+completo de la receta.
 
-## Cálculo
+Las versiones históricas son inmutables. Cambiar el costo actual del ingrediente
+cambia la estimación de una receta, pero no los costos de producciones ya creadas,
+que utilizan snapshots.
 
-`scaleFactor = requestedUnits / baseYieldUnits`, con 6 decimales y HALF_UP.
-Cada cantidad requerida se redondea a 2 decimales con HALF_UP. `enoughStock` y
-`missingGrams` comparan esa cantidad con el stock actual, sin descontarlo.
-
-El costo estimado es `requiredQuantityGrams * costPerKilogram / 1000`. El costo
-por unidad se divide con 6 decimales y HALF_UP.
-
-## Persistencia
-
-Flyway aplica `V7__crear_tablas_recetas.sql`. La FK de variedad reproduce el
-tipo real `INT UNSIGNED` y apunta a `variedad_empanada(id_variedad)`. La migración crea `recipes` y
-`recipe_ingredients`, restricciones positivas, claves foráneas e índices.
-
-La columna generada `active_variety_id` permite un índice único que admite
-múltiples versiones históricas inactivas y solo una activa por variedad.
-
-## Verificación
-
-```powershell
-.\mvnw.cmd -Dtest=RecipeIntegrationTest test
-.\mvnw.cmd test
-```
-
-`RecipeIntegrationTest` cubre el contrato HTTP, reglas, cálculos, costos actuales,
-inmutabilidad, stock intacto y creaciones/versiones concurrentes. La migración se
-puede comprobar en un esquema MySQL vacío con:
-
-```powershell
-.\mvnw.cmd "-Drecipe.mysqlTestUrl=jdbc:mysql://127.0.0.1:33317/recipe_v7_migration_test" -Dtest=RecipeMigrationMySqlTest test
-```
+Al crear una versión nueva se envía el conjunto completo de ingredientes y
+costos adicionales. Omitir un costo lo excluye de la versión nueva y nunca
+modifica la versión histórica.

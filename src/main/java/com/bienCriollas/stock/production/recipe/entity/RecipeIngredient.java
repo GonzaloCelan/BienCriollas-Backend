@@ -36,9 +36,8 @@ public class RecipeIngredient {
     private Ingredient ingredient;
 
     @NotNull
-    @DecimalMin("0.01")
-    @Digits(integer = 12, fraction = 2)
-    @Column(name = "quantity_grams", nullable = false, precision = 14, scale = 2)
-    private BigDecimal quantityGrams;
+    @DecimalMin(value = "0.0000", inclusive = false)
+    @Digits(integer = 15, fraction = 4)
+    @Column(name = "quantity", nullable = false, precision = 19, scale = 4)
+    private BigDecimal quantity;
 }
-

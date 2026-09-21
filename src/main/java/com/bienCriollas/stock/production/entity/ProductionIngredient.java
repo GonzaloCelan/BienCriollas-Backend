@@ -3,6 +3,7 @@ package com.bienCriollas.stock.production.entity;
 import java.math.BigDecimal;
 
 import com.bienCriollas.stock.production.ingredient.entity.Ingredient;
+import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -36,19 +37,24 @@ public class ProductionIngredient {
     private Ingredient ingredient;
 
     @NotNull
-    @DecimalMin("0.00")
-    @Digits(integer = 12, fraction = 2)
-    @Column(name = "expected_quantity_grams", nullable = false, precision = 14, scale = 2)
-    private BigDecimal expectedQuantityGrams;
+    @DecimalMin("0.0000")
+    @Digits(integer = 15, fraction = 4)
+    @Column(name = "expected_quantity", nullable = false, precision = 19, scale = 4)
+    private BigDecimal expectedQuantity;
 
-    @DecimalMin("0.00")
-    @Digits(integer = 12, fraction = 2)
-    @Column(name = "actual_quantity_grams", precision = 14, scale = 2)
-    private BigDecimal actualQuantityGrams;
+    @DecimalMin("0.0000")
+    @Digits(integer = 15, fraction = 4)
+    @Column(name = "actual_quantity", precision = 19, scale = 4)
+    private BigDecimal actualQuantity;
 
     @NotNull
-    @DecimalMin(value = "0.00", inclusive = false)
-    @Digits(integer = 8, fraction = 6)
-    @Column(name = "cost_per_gram_snapshot", nullable = false, precision = 14, scale = 6)
-    private BigDecimal costPerGramSnapshot;
+    @DecimalMin("0.000000")
+    @Digits(integer = 13, fraction = 6)
+    @Column(name = "cost_per_base_unit_snapshot", nullable = false, precision = 19, scale = 6)
+    private BigDecimal costPerBaseUnitSnapshot;
+
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "measurement_unit_snapshot", nullable = false, length = 30)
+    private MeasurementUnit measurementUnitSnapshot;
 }

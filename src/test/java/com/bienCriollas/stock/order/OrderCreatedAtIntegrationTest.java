@@ -131,7 +131,11 @@ class OrderCreatedAtIntegrationTest {
         mockMvc.perform(put(BASE + "/actualizar-estado/{id}/CANCELADO", id).with(jwt()))
                 .andExpect(status().isOk());
 
-        assertThat(reload(id).getCreatedAt()).isEqualTo(original);
+        Order cancelled = reload(id);
+        assertThat(cancelled.getCreatedAt()).isEqualTo(original);
+        assertThat(cancelled.getCashAmount()).isEqualByComparingTo("0.00");
+        assertThat(cancelled.getTransferAmount()).isEqualByComparingTo("0.00");
+        assertThat(cancelled.getOrderTotal()).isEqualByComparingTo("0.00");
     }
 
     @Test

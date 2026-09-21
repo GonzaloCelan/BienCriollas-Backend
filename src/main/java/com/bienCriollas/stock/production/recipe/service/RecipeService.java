@@ -16,6 +16,7 @@ import com.bienCriollas.stock.production.ingredient.repository.IngredientReposit
 import com.bienCriollas.stock.production.recipe.dto.*;
 import com.bienCriollas.stock.production.recipe.entity.*;
 import com.bienCriollas.stock.production.recipe.exception.*;
+import com.bienCriollas.stock.production.recipe.enums.*;
 import com.bienCriollas.stock.production.recipe.interfaces.IRecipeService;
 import com.bienCriollas.stock.production.recipe.repository.RecipeRepository;
 import com.bienCriollas.stock.variety.entity.EmpanadaVariety;
@@ -31,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 public class RecipeService implements IRecipeService {
 
     private static final int CALCULATION_SCALE = 6;
+    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final Set<String> SORTABLE_FIELDS = Set.of(
             "id", "varietyName", "version", "baseYieldUnits",
             "active", "createdAt", "updatedAt");
@@ -39,6 +41,7 @@ public class RecipeService implements IRecipeService {
     private final IngredientRepository ingredientRepository;
     private final EmpanadaVarietyRepository varietyRepository;
     private final Validator validator;
+    private final RecipeCostCalculator costCalculator;
 
     @Override
     @Transactional
@@ -50,7 +53,8 @@ public class RecipeService implements IRecipeService {
         }
 
         Recipe recipe = newRecipe(
-                variety, 1, dto.baseYieldUnits(), normalizeNotes(dto.notes()), dto.ingredients());
+                variety, 1, dto.baseYieldUnits(), normalizeNotes(dto.notes()),
+                dto.ingredients(), dto.additionalCosts());
         return toResponse(recipeRepository.saveAndFlush(recipe));
     }
 
@@ -124,7 +128,8 @@ public class RecipeService implements IRecipeService {
                 Math.addExact(latest.getVersion(), 1),
                 dto.baseYieldUnits(),
                 normalizeNotes(dto.notes()),
-                ingredients);
+                ingredients,
+                resolveAdditionalCosts(dto.additionalCosts()));
         return toResponse(recipeRepository.saveAndFlush(next));
     }
 
@@ -142,26 +147,28 @@ public class RecipeService implements IRecipeService {
         BigDecimal total = BigDecimal.ZERO;
         for (RecipeIngredient item : recipe.getIngredients()) {
             Ingredient ingredient = item.getIngredient();
-            BigDecimal required = item.getQuantityGrams()
+            BigDecimal required = item.getQuantity()
                     .multiply(scaleFactor)
-                    .setScale(2, RoundingMode.HALF_UP);
-            boolean enough = ingredient.getCurrentStockGrams().compareTo(required) >= 0;
+                    .setScale(4, RoundingMode.HALF_UP);
+            boolean enough = ingredient.getCurrentStock().compareTo(required) >= 0;
             BigDecimal missing = enough
-                    ? BigDecimal.ZERO.setScale(2)
-                    : required.subtract(ingredient.getCurrentStockGrams());
-            BigDecimal cost = costForGrams(required, ingredient);
+                    ? BigDecimal.ZERO.setScale(4)
+                    : required.subtract(ingredient.getCurrentStock());
+            BigDecimal cost = costForQuantity(required, ingredient);
             total = total.add(cost);
             calculated.add(new RecipeCalculatedIngredientDTO(
                     ingredient.getId(),
                     ingredient.getName(),
-                    item.getQuantityGrams(),
+                    ingredient.getMeasurementUnit(),
+                    item.getQuantity(),
                     required,
-                    ingredient.getCurrentStockGrams(),
+                    ingredient.getCurrentStock(),
                     enough,
                     missing,
                     cost));
         }
 
+        RecipeCostCalculator.Calculation costs = costCalculator.calculate(recipe, quantity, total);
         return new RecipeCalculationResponseDTO(
                 recipe.getId(),
                 recipe.getVariety().getVarietyId(),
@@ -171,8 +178,10 @@ public class RecipeService implements IRecipeService {
                 quantity,
                 scaleFactor.stripTrailingZeros(),
                 List.copyOf(calculated),
-                total,
-                dividePerUnit(total, quantity));
+                costs.additionalCosts(),
+                costs.summary(),
+                costs.summary().estimatedRecipeTotalCost(),
+                costs.summary().estimatedCostPerUnit());
     }
 
     private Recipe newRecipe(
@@ -180,8 +189,10 @@ public class RecipeService implements IRecipeService {
             int version,
             int baseYieldUnits,
             String notes,
-            List<RecipeIngredientRequestDTO> requests) {
-        return buildRecipe(variety, version, baseYieldUnits, notes, resolveIngredients(requests));
+            List<RecipeIngredientRequestDTO> requests,
+            List<RecipeAdditionalCostRequestDTO> additionalCosts) {
+        return buildRecipe(variety, version, baseYieldUnits, notes,
+                resolveIngredients(requests), resolveAdditionalCosts(additionalCosts));
     }
 
     private Recipe buildRecipe(
@@ -189,7 +200,8 @@ public class RecipeService implements IRecipeService {
             int version,
             int baseYieldUnits,
             String notes,
-            List<ResolvedIngredient> ingredients) {
+            List<ResolvedIngredient> ingredients,
+            List<ResolvedAdditionalCost> additionalCosts) {
         Recipe recipe = Recipe.builder()
                 .variety(variety)
                 .version(version)
@@ -199,9 +211,63 @@ public class RecipeService implements IRecipeService {
                 .build();
         ingredients.forEach(item -> recipe.addIngredient(RecipeIngredient.builder()
                 .ingredient(item.ingredient())
-                .quantityGrams(item.quantityGrams())
+                .quantity(item.quantity())
+                .build()));
+        additionalCosts.forEach(item -> recipe.addAdditionalCost(RecipeAdditionalCost.builder()
+                .costType(item.costType())
+                .name(item.name())
+                .calculationMode(item.calculationMode())
+                .value(item.value())
+                .sortOrder(item.sortOrder())
+                .notes(item.notes())
+                .active(true)
                 .build()));
         return recipe;
+    }
+
+    private List<ResolvedAdditionalCost> resolveAdditionalCosts(
+            List<RecipeAdditionalCostRequestDTO> requests) {
+        if (requests == null || requests.isEmpty()) return List.of();
+
+        EnumSet<AdditionalCostType> seen = EnumSet.noneOf(AdditionalCostType.class);
+        List<ResolvedAdditionalCost> resolved = new ArrayList<>();
+        for (RecipeAdditionalCostRequestDTO request : requests) {
+            validateAdditionalCost(request);
+            if (request.costType() != AdditionalCostType.OTHER
+                    && !seen.add(request.costType())) {
+                throw new InvalidRecipeException(
+                        "El costo de tipo " + request.costType() + " está duplicado.");
+            }
+            resolved.add(new ResolvedAdditionalCost(
+                    request.costType(), normalizeRequired(request.name()),
+                    request.calculationMode(), request.value(), request.sortOrder(),
+                    normalizeNotes(request.notes())));
+        }
+        return resolved;
+    }
+
+    private void validateAdditionalCost(RecipeAdditionalCostRequestDTO request) {
+        if (request == null) {
+            throw new InvalidRecipeException("Los costos adicionales no pueden contener valores nulos.");
+        }
+        validateBean(request);
+        var type = request.costType();
+        var mode = request.calculationMode();
+        var fixed = AdditionalCostCalculationMode.FIXED_TOTAL;
+        var perUnit = AdditionalCostCalculationMode.PER_UNIT;
+        var percentage = AdditionalCostCalculationMode.PERCENTAGE;
+        if (type == AdditionalCostType.LABOR && mode != fixed) {
+            throw new InvalidRecipeException("El costo de tipo LABOR debe utilizar FIXED_TOTAL.");
+        }
+        if (type == AdditionalCostType.PACKAGING && mode != perUnit) {
+            throw new InvalidRecipeException("El costo de tipo PACKAGING debe utilizar PER_UNIT.");
+        }
+        if (type == AdditionalCostType.ENERGY && mode != percentage) {
+            throw new InvalidRecipeException("El costo de tipo ENERGY debe utilizar PERCENTAGE.");
+        }
+        if (mode == percentage && request.value().compareTo(ONE_HUNDRED) > 0) {
+            throw new InvalidRecipeException("Los costos porcentuales no pueden superar el 100%.");
+        }
     }
 
     private List<ResolvedIngredient> resolveIngredients(
@@ -234,7 +300,7 @@ public class RecipeService implements IRecipeService {
             if (!Boolean.TRUE.equals(ingredient.getActive())) {
                 throw new InactiveIngredientForRecipeException(ingredient.getName());
             }
-            resolved.add(new ResolvedIngredient(ingredient, request.quantityGrams()));
+            resolved.add(new ResolvedIngredient(ingredient, request.quantity()));
         }
         return resolved;
     }
@@ -244,16 +310,18 @@ public class RecipeService implements IRecipeService {
         BigDecimal total = BigDecimal.ZERO;
         for (RecipeIngredient item : recipe.getIngredients()) {
             Ingredient ingredient = item.getIngredient();
-            BigDecimal costPerGram = ingredient.getCostPerKilogram().movePointLeft(3);
-            BigDecimal estimatedCost = costForGrams(item.getQuantityGrams(), ingredient);
+            BigDecimal estimatedCost = costForQuantity(item.getQuantity(), ingredient);
             total = total.add(estimatedCost);
             ingredientResponses.add(new RecipeIngredientResponseDTO(
                     ingredient.getId(),
                     ingredient.getName(),
-                    item.getQuantityGrams(),
-                    costPerGram,
+                    item.getQuantity(),
+                    ingredient.getMeasurementUnit(),
+                    ingredient.getCostPerBaseUnit(),
                     estimatedCost));
         }
+        RecipeCostCalculator.Calculation costs = costCalculator.calculate(
+                recipe, recipe.getBaseYieldUnits(), total);
         return new RecipeResponseDTO(
                 recipe.getId(),
                 recipe.getVariety().getVarietyId(),
@@ -262,20 +330,17 @@ public class RecipeService implements IRecipeService {
                 recipe.getBaseYieldUnits(),
                 recipe.getNotes(),
                 List.copyOf(ingredientResponses),
-                total,
-                dividePerUnit(total, recipe.getBaseYieldUnits()),
+                costs.additionalCosts(),
+                costs.summary(),
+                costs.summary().estimatedRecipeTotalCost(),
+                costs.summary().estimatedCostPerUnit(),
                 recipe.getActive(),
                 recipe.getCreatedAt(),
                 recipe.getUpdatedAt());
     }
 
-    private BigDecimal costForGrams(BigDecimal grams, Ingredient ingredient) {
-        return grams.multiply(ingredient.getCostPerKilogram()).movePointLeft(3);
-    }
-
-    private BigDecimal dividePerUnit(BigDecimal total, int units) {
-        return total.divide(BigDecimal.valueOf(units),
-                CALCULATION_SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
+    private BigDecimal costForQuantity(BigDecimal quantity, Ingredient ingredient) {
+        return quantity.multiply(ingredient.getCostPerBaseUnit());
     }
 
     private Recipe findDetailed(Long id) {
@@ -337,6 +402,10 @@ public class RecipeService implements IRecipeService {
         return notes.strip();
     }
 
+    private String normalizeRequired(String value) {
+        return value.strip().replaceAll("\\s+", " ");
+    }
+
     private void validateId(Long id, String message) {
         if (id == null || id <= 0) {
             throw new InvalidRecipeException(message);
@@ -365,5 +434,13 @@ public class RecipeService implements IRecipeService {
                 : Pageable.unpaged(sort);
     }
 
-    private record ResolvedIngredient(Ingredient ingredient, BigDecimal quantityGrams) {}
+    private record ResolvedIngredient(Ingredient ingredient, BigDecimal quantity) {}
+
+    private record ResolvedAdditionalCost(
+            AdditionalCostType costType,
+            String name,
+            AdditionalCostCalculationMode calculationMode,
+            BigDecimal value,
+            Integer sortOrder,
+            String notes) {}
 }

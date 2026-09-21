@@ -32,7 +32,7 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
 
     @Query("""
             SELECT i FROM Ingredient i
-            WHERE i.active = true AND i.currentStockGrams <= i.minimumStockGrams
+            WHERE i.active = true AND i.currentStock <= i.minimumStock
             ORDER BY i.name, i.id
             """)
     List<Ingredient> findLowStockIngredients();
@@ -54,8 +54,8 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
                 COUNT(i),
                 COALESCE(SUM(CASE WHEN i.active = true THEN 1L ELSE 0L END), 0L),
                 COALESCE(SUM(CASE WHEN i.active = false THEN 1L ELSE 0L END), 0L),
-                COALESCE(SUM(CASE WHEN i.active = true AND i.currentStockGrams <= i.minimumStockGrams THEN 1L ELSE 0L END), 0L),
-                COALESCE(SUM(i.currentStockGrams * i.costPerKilogram * 0.001BD), 0BD))
+                COALESCE(SUM(CASE WHEN i.active = true AND i.currentStock <= i.minimumStock THEN 1L ELSE 0L END), 0L),
+                COALESCE(SUM(i.currentStock * i.costPerBaseUnit), 0BD))
             FROM Ingredient i
             """)
     IngredientSummaryDTO getSummary();

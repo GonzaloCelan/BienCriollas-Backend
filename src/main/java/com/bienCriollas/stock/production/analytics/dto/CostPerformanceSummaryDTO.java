@@ -11,6 +11,8 @@ public record CostPerformanceSummaryDTO(
         Integer totalWasteUnits,
         BigDecimal totalIngredientCost,
         BigDecimal totalLaborCost,
+        BigDecimal totalPackagingCost,
+        BigDecimal totalOtherAdditionalCost,
         BigDecimal totalEnergyCost,
         BigDecimal totalProductionCost,
         BigDecimal averageCostPerUnit,

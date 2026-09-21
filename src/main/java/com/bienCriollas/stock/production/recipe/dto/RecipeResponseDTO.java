@@ -12,10 +12,11 @@ public record RecipeResponseDTO(
         Integer baseYieldUnits,
         String notes,
         List<RecipeIngredientResponseDTO> ingredients,
+        List<RecipeAdditionalCostResponseDTO> additionalCosts,
+        RecipeCostSummaryDTO costSummary,
         BigDecimal estimatedTotalCost,
         BigDecimal estimatedCostPerUnit,
         Boolean active,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}
-
