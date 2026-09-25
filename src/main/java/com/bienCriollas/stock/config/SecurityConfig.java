@@ -64,6 +64,9 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/ws/**").permitAll()
                         .requestMatchers("/api/v2/usuarios/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers(
+                                "/api/v2/employees/**",
+                                "/api/v2/employee-workdays/**").hasRole("ADMINISTRADOR")
                         .requestMatchers("/api/v2/pedido/regularizacion/**").hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/v2/catalogo/**").hasRole("ADMINISTRADOR")
                         .requestMatchers(

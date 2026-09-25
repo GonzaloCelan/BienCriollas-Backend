@@ -57,6 +57,8 @@ import com.bienCriollas.stock.production.exception.ProductionAlreadyFinalizedExc
 import com.bienCriollas.stock.production.exception.ProductionNotFoundException;
 import com.bienCriollas.stock.production.analytics.exception.InvalidProductionAnalyticsException;
 import com.bienCriollas.stock.production.analytics.exception.ProductionAnalyticsNotFoundException;
+import com.bienCriollas.stock.employee.dto.EmployeeBulkConflictResponseDTO;
+import com.bienCriollas.stock.employee.exception.*;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -84,6 +86,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             OrderNotFoundException.class,
+            EmployeeNotFoundException.class,
+            WorkDayNotFoundException.class,
             IngredientNotFoundException.class,
             RecipeNotFoundException.class,
             ProductionProcessNotFoundException.class,
@@ -101,6 +105,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             OrderOperationNotAllowedException.class,
+            EmployeeInactiveException.class,
+            WorkDayAlreadyExistsException.class,
             IngredientAlreadyExistsException.class,
             RecipeAlreadyExistsException.class,
             ProcessAlreadyExistsException.class,
@@ -122,6 +128,16 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(BulkWorkDayConflictException.class)
+    public ResponseEntity<EmployeeBulkConflictResponseDTO> handleBulkWorkDayConflict(
+            BulkWorkDayConflictException exception,
+            HttpServletRequest request) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        return ResponseEntity.status(status).body(new EmployeeBulkConflictResponseDTO(
+                OffsetDateTime.now(ARGENTINA_ZONE), status.value(), status.getReasonPhrase(),
+                exception.getMessage(), request.getRequestURI(), exception.getConflicts()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidationFailure(
             MethodArgumentNotValidException exception,
@@ -135,6 +151,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             InvalidExpenseException.class,
+            InvalidEmployeeException.class,
+            InvalidWorkDayException.class,
             InvalidIngredientException.class,
             InvalidRecipeException.class,
             InvalidRecipeYieldException.class,
