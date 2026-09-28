@@ -1,7 +1,6 @@
 package com.bienCriollas.stock.production.ingredient.service;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Set;
@@ -32,8 +31,7 @@ public class IngredientService implements IIngredientService {
 
     private static final Set<String> SORTABLE_FIELDS = Set.of(
             "id", "name", "measurementUnit", "purchasePresentation", "purchaseQuantity",
-            "purchasePrice", "currentStock", "minimumStock",
-            "costPerBaseUnit", "active", "createdAt", "updatedAt");
+            "purchasePrice", "costPerBaseUnit", "active", "createdAt", "updatedAt");
 
     private final IngredientRepository ingredientRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
@@ -53,6 +51,9 @@ public class IngredientService implements IIngredientService {
         Ingredient ingredient = ingredientMapper.toEntity(dto);
         ingredient.setName(name);
         ingredient.setActive(true);
+        // Las columnas se mantienen temporalmente en la tabla, pero ya no son parte del negocio.
+        ingredient.setCurrentStock(BigDecimal.ZERO.setScale(4));
+        ingredient.setMinimumStock(BigDecimal.ZERO.setScale(4));
         applyPurchaseData(ingredient, dto.purchasePresentation(), dto.purchaseQuantity(),
                 dto.purchasePrice(), true);
         return save(ingredient);
@@ -111,53 +112,11 @@ public class IngredientService implements IIngredientService {
 
     @Override
     @Transactional
-    public IngredientResponseDTO setStock(Long id, IngredientStockUpdateDTO dto) {
-        validate(dto);
-        Ingredient ingredient = findForUpdate(id);
-        ingredient.setCurrentStock(dto.currentStock());
-        return save(ingredient);
-    }
-
-    @Override
-    @Transactional
-    public IngredientResponseDTO increaseStock(Long id, IngredientStockMovementDTO dto) {
-        validate(dto);
-        Ingredient ingredient = findForUpdate(id);
-        ingredient.setCurrentStock(ingredient.getCurrentStock().add(dto.quantity()));
-        return save(ingredient);
-    }
-
-    @Override
-    @Transactional
-    public IngredientResponseDTO decreaseStock(Long id, IngredientStockMovementDTO dto) {
-        validate(dto);
-        Ingredient ingredient = findForUpdate(id);
-        ingredient.requireActive();
-        if (ingredient.getCurrentStock().compareTo(dto.quantity()) < 0) {
-            throw new InsufficientIngredientStockException(
-                    ingredient.getName(), ingredient.getCurrentStock(), dto.quantity(),
-                    ingredient.getMeasurementUnit());
-        }
-        ingredient.setCurrentStock(ingredient.getCurrentStock().subtract(dto.quantity()));
-        return save(ingredient);
-    }
-
-    @Override
-    @Transactional
     public IngredientResponseDTO updateCost(Long id, IngredientCostUpdateDTO dto) {
         validate(dto);
         Ingredient ingredient = findForUpdate(id);
         applyPurchaseData(ingredient, dto.purchasePresentation(), dto.purchaseQuantity(),
                 dto.purchasePrice(), true);
-        return save(ingredient);
-    }
-
-    @Override
-    @Transactional
-    public IngredientResponseDTO updateMinimumStock(Long id, IngredientMinimumStockDTO dto) {
-        validate(dto);
-        Ingredient ingredient = findForUpdate(id);
-        ingredient.setMinimumStock(dto.minimumStock());
         return save(ingredient);
     }
 
@@ -175,12 +134,6 @@ public class IngredientService implements IIngredientService {
         Ingredient ingredient = findForUpdate(id);
         ingredient.setActive(false);
         return save(ingredient);
-    }
-
-    @Override
-    public List<IngredientResponseDTO> getLowStockIngredients() {
-        return ingredientRepository.findLowStockIngredients().stream()
-                .map(ingredientMapper::toResponseDTO).toList();
     }
 
     @Override
@@ -247,13 +200,12 @@ public class IngredientService implements IIngredientService {
         if (ingredient.getMeasurementUnit() == dto.measurementUnit()) {
             return;
         }
-        boolean alreadyUsed = ingredient.getCurrentStock().signum() != 0
-                || recipeIngredientRepository.existsByIngredientId(ingredient.getId())
+        boolean alreadyUsed = recipeIngredientRepository.existsByIngredientId(ingredient.getId())
                 || productionIngredientRepository.existsByIngredientId(ingredient.getId());
         if (alreadyUsed) {
             throw new InvalidIngredientException(
                     "La unidad de medida no puede cambiarse porque el ingrediente ya tiene "
-                            + "stock, recetas o producciones asociadas.");
+                            + "recetas o producciones asociadas.");
         }
     }
 

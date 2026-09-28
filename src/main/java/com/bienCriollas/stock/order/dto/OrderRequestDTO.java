@@ -31,7 +31,11 @@ public record OrderRequestDTO (
     @JsonProperty("detalles")
     @Schema(description = "Variedades y cantidades que reemplazan el detalle completo.") List<OrderDetailRequestDTO> details,
     @JsonProperty("fechaEntrega")
-    @Schema(description = "Fecha solicitada de entrega. Si es futura, el pedido queda programado sin descontar stock.", example = "2026-09-13", nullable = true) LocalDate deliveryDate
+    @Schema(description = "Fecha solicitada de entrega. Si es futura, el pedido queda programado sin descontar stock.", example = "2026-09-13", nullable = true) LocalDate deliveryDate,
+    @JsonProperty("pagado")
+    @Schema(description = "Indica si el cobro ya fue confirmado. En creación, si se omite, es false.", example = "false", nullable = true) Boolean pagado,
+    @JsonProperty("tiempoEstimadoDeliveryMinutos")
+    @Schema(description = "Minutos informados por PedidosYa hasta la llegada del repartidor. Es opcional y solo aplica a PEDIDOS_YA.", example = "31", nullable = true) Integer estimatedDeliveryMinutes
 
     ) {
     public OrderRequestDTO(
@@ -45,6 +49,37 @@ public record OrderRequestDTO (
             BigDecimal orderTotal,
             List<OrderDetailRequestDTO> details) {
         this(customer, saleType, paymentType, pedidosYaOrderNumber, deliveryTime,
-                cashAmount, transferAmount, orderTotal, details, null);
+                cashAmount, transferAmount, orderTotal, details, null, null, null);
+    }
+
+    public OrderRequestDTO(
+            String customer,
+            String saleType,
+            String paymentType,
+            String pedidosYaOrderNumber,
+            LocalTime deliveryTime,
+            BigDecimal cashAmount,
+            BigDecimal transferAmount,
+            BigDecimal orderTotal,
+            List<OrderDetailRequestDTO> details,
+            LocalDate deliveryDate) {
+        this(customer, saleType, paymentType, pedidosYaOrderNumber, deliveryTime,
+                cashAmount, transferAmount, orderTotal, details, deliveryDate, null, null);
+    }
+
+    public OrderRequestDTO(
+            String customer,
+            String saleType,
+            String paymentType,
+            String pedidosYaOrderNumber,
+            LocalTime deliveryTime,
+            BigDecimal cashAmount,
+            BigDecimal transferAmount,
+            BigDecimal orderTotal,
+            List<OrderDetailRequestDTO> details,
+            LocalDate deliveryDate,
+            Boolean pagado) {
+        this(customer, saleType, paymentType, pedidosYaOrderNumber, deliveryTime,
+                cashAmount, transferAmount, orderTotal, details, deliveryDate, pagado, null);
     }
 }

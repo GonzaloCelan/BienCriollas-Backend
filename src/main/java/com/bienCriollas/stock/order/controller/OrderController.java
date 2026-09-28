@@ -8,6 +8,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -23,6 +24,8 @@ import com.bienCriollas.stock.order.dto.OrderResponseDTO;
 import com.bienCriollas.stock.order.dto.ScheduledOrderSummaryDTO;
 import com.bienCriollas.stock.order.dto.CommittedStockDTO;
 import com.bienCriollas.stock.order.dto.UpdatePaymentRequestDTO;
+import com.bienCriollas.stock.order.dto.UpdatePaidStatusRequestDTO;
+import com.bienCriollas.stock.order.dto.UpdateDeliveryEtaRequestDTO;
 import com.bienCriollas.stock.order.interfaces.IOrderService;
 import com.bienCriollas.stock.order.enums.OrderStatus;
 import com.bienCriollas.stock.order.enums.PaymentType;
@@ -31,6 +34,7 @@ import com.bienCriollas.stock.order.exception.InvalidOrderException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -111,6 +115,47 @@ public class OrderController {
                     )
             );
         }
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/pago")
+    @Operation(
+            summary = "Actualizar el estado del cobro",
+            description = "Marca el pedido como pagado o pendiente y notifica el cambio en /topic/pedidos. Un pedido ENTREGADO no puede quedar pendiente de pago.")
+    public ResponseEntity<OrderResponseDTO> updatePaidStatus(
+            @PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
+            @Valid @RequestBody UpdatePaidStatusRequestDTO request) {
+        OrderResponseDTO response = orderService.updatePaidStatus(id, request.pagado());
+
+        messagingTemplate.convertAndSend(
+                "/topic/pedidos",
+                new OrderEventDTO(
+                        "PAGO_ACTUALIZADO",
+                        response.orderId(),
+                        response.orderStatus().name()));
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/eta-delivery")
+    @Operation(
+            summary = "Actualizar el ETA del repartidor",
+            description = "Calcula la hora objetivo a partir de los minutos informados por PedidosYa. Enviar minutos=null quita el ETA.")
+    public ResponseEntity<OrderResponseDTO> updateDeliveryEta(
+            @PathVariable @Parameter(description = "ID del pedido", example = "123") Long id,
+            @RequestBody UpdateDeliveryEtaRequestDTO request) {
+        if (request == null) {
+            throw new InvalidOrderException("El cuerpo de la solicitud es obligatorio");
+        }
+        OrderResponseDTO response = orderService.updateDeliveryEta(id, request.minutes());
+
+        messagingTemplate.convertAndSend(
+                "/topic/pedidos",
+                new OrderEventDTO(
+                        "ETA_DELIVERY_ACTUALIZADO",
+                        response.orderId(),
+                        response.orderStatus().name()));
 
         return ResponseEntity.ok(response);
     }

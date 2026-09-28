@@ -2,11 +2,19 @@
 
 Base: `/api/v1/ingredients`. Todos los endpoints requieren Bearer JWT.
 
-Cada ingrediente usa una única `measurementUnit`: `GRAM` (`g`), `MILLILITER`
-(`ml`) o `UNIT` (`u`). El stock, el mínimo y las cantidades se expresan siempre
-en esa unidad base. La presentación de compra es descriptiva y su contenido
-también se expresa en la unidad base. El backend calcula
-`costPerBaseUnit = purchasePrice / purchaseQuantity` con seis decimales.
+Ingredientes es el catálogo de materias primas y precios. No controla inventario físico,
+stock mínimo, disponibilidad ni alertas.
+
+Cada ingrediente usa una unidad base: `GRAM`, `MILLILITER` o `UNIT`. El backend
+calcula:
+
+`costPerBaseUnit = purchasePrice / purchaseQuantity`
+
+También entrega un precio comercial de referencia:
+
+- `GRAM`: `referencePrice = costPerBaseUnit * 1000`, unidad `KG`.
+- `MILLILITER`: `referencePrice = costPerBaseUnit * 1000`, unidad `LITER`.
+- `UNIT`: `referencePrice = costPerBaseUnit`, unidad `UNIT`.
 
 | Método | Ruta | Operación |
 | --- | --- | --- |
@@ -15,16 +23,13 @@ también se expresa en la unidad base. El backend calcula
 | GET | `/{id}` | Obtener por id |
 | GET | `/search?query=car` | Buscar activos por nombre |
 | GET | `/status?active=false` | Listar por estado |
-| GET | `/low-stock` | Listar activos debajo del mínimo |
-| GET | `/summary` | Resumen e importe total del inventario |
-| PUT | `/{id}` | Actualizar ingrediente |
-| PATCH | `/{id}/stock` | Establecer stock exacto |
-| PATCH | `/{id}/stock/increase` | Sumar stock |
-| PATCH | `/{id}/stock/decrease` | Descontar stock |
-| PATCH | `/{id}/cost` | Actualizar presentación, contenido y precio de compra |
-| PATCH | `/{id}/minimum-stock` | Actualizar mínimo |
+| GET | `/summary` | Contadores del catálogo |
+| PUT | `/{id}` | Actualizar nombre, unidad y presentación |
+| PATCH | `/{id}/cost` | Actualizar presentación, contenido y precio |
 | PATCH | `/{id}/activate` | Activar |
 | PATCH | `/{id}/deactivate` | Desactivar |
+
+## Crear o actualizar
 
 ```json
 {
@@ -32,34 +37,37 @@ también se expresa en la unidad base. El backend calcula
   "measurementUnit": "MILLILITER",
   "purchasePresentation": "Botella",
   "purchaseQuantity": 900,
-  "purchasePrice": 2740,
-  "currentStock": 3600,
-  "minimumStock": 900
+  "purchasePrice": 2740
 }
 ```
 
-Los PATCH reciben `{"currentStock":5000}`, `{"quantity":250}`,
-`{"purchasePresentation":"Botella","purchaseQuantity":900,"purchasePrice":2740}`
-o `{"minimumStock":1000}`, según la ruta.
+## Respuesta
 
-La respuesta incluye `measurementUnit`, `purchasePresentation`, `purchaseQuantity`,
-`purchasePrice`, `purchaseDataComplete`, `currentStock`, `minimumStock`,
-`costPerBaseUnit`, `stockValue`, `lowStock`, `active`, `createdAt` y `updatedAt`.
-`stockValue = currentStock * costPerBaseUnit` y
-`lowStock = currentStock <= minimumStock`.
+```json
+{
+  "id": 1,
+  "name": "Aceite",
+  "measurementUnit": "MILLILITER",
+  "purchasePresentation": "Botella",
+  "purchaseQuantity": 900,
+  "purchasePrice": 2740,
+  "costPerBaseUnit": 3.044444,
+  "purchaseDataComplete": true,
+  "referencePrice": 3044.44,
+  "referencePriceUnit": "LITER",
+  "active": true,
+  "createdAt": "2026-09-28T17:00:00",
+  "updatedAt": "2026-09-28T17:00:00"
+}
+```
 
-Stock, mínimo y contenido de compra admiten cuatro decimales. El precio de la
-presentación admite dos decimales y el costo calculado por unidad base, seis.
-La unidad no puede modificarse si el ingrediente ya tiene stock o está relacionado
-con recetas o producciones.
+Los clientes anteriores pueden enviar temporalmente `currentStock` y `minimumStock`;
+el backend los ignora. Esos campos no aparecen en la respuesta.
 
-Flyway V14 migra los registros existentes como `GRAM`, copia stock y mínimo,
-convierte `cost_per_kilogram / 1000` a `cost_per_base_unit` y sustituye las
-columnas legacy. Flyway V17 agrega los datos de compra como columnas nullable:
-los ingredientes históricos mantienen su costo y responden
-`purchaseDataComplete: false` hasta que se carguen datos reales. La migración no
-inventa presentaciones, cantidades ni precios.
+Las columnas `current_stock` y `minimum_stock` continúan en la base como datos
+legacy para evitar una migración destructiva, pero la aplicación no las consulta ni
+las modifica durante el flujo normal.
 
-Los ingredientes históricos que realmente sean líquidos o unidades requieren una
-corrección administrativa con valores reales; la migración no inventa conversiones
-entre gramos, mililitros y unidades.
+Las rutas `/low-stock`, `/{id}/stock`, `/{id}/stock/increase`,
+`/{id}/stock/decrease` y `/{id}/minimum-stock` están discontinuadas y responden
+`410 Gone`.

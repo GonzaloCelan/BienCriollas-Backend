@@ -35,7 +35,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import com.bienCriollas.stock.production.ingredient.exception.IngredientNotFoundException;
 import com.bienCriollas.stock.production.ingredient.exception.IngredientAlreadyExistsException;
 import com.bienCriollas.stock.production.ingredient.exception.IngredientInactiveException;
-import com.bienCriollas.stock.production.ingredient.exception.InsufficientIngredientStockException;
 import com.bienCriollas.stock.production.ingredient.exception.InvalidIngredientException;
 import com.bienCriollas.stock.production.recipe.exception.RecipeNotFoundException;
 import com.bienCriollas.stock.production.recipe.exception.RecipeAlreadyExistsException;
@@ -116,7 +115,6 @@ public class GlobalExceptionHandler {
             RecipeIngredientDuplicatedException.class,
             InactiveIngredientForRecipeException.class,
             IngredientInactiveException.class,
-            InsufficientIngredientStockException.class,
             UserOperationNotAllowedException.class,
             InsufficientStockException.class,
             DuplicateUserException.class,

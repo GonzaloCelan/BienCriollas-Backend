@@ -6,8 +6,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -249,35 +247,9 @@ public class ProductionService implements IProductionService {
 
         List<ProductionIngredient> consumptions = productionIngredientRepository
                 .findByProductionIdOrderByIngredientId(id);
-        List<Long> ingredientIds = consumptions.stream()
-                .map(item -> item.getIngredient().getId()).sorted().toList();
-        List<Ingredient> lockedIngredients = ingredientRepository
-                .findAllByIdForProduction(ingredientIds);
-        if (lockedIngredients.size() != ingredientIds.size()) {
-            Set<Long> found = lockedIngredients.stream().map(Ingredient::getId).collect(Collectors.toSet());
-            Long missing = ingredientIds.stream().filter(item -> !found.contains(item)).findFirst().orElse(null);
-            throw new IngredientNotFoundException(missing);
-        }
-        Map<Long, Ingredient> byId = lockedIngredients.stream()
-                .collect(Collectors.toMap(Ingredient::getId, Function.identity()));
-
         for (ProductionIngredient consumption : consumptions) {
-            Ingredient ingredient = byId.get(consumption.getIngredient().getId());
-            BigDecimal actual = effectiveActual(consumption);
-            if (ingredient.getCurrentStock().compareTo(actual) < 0) {
-                throw new InsufficientIngredientStockException(
-                        ingredient.getName(), ingredient.getCurrentStock(), actual,
-                        consumption.getMeasurementUnitSnapshot());
-            }
+            consumption.setActualQuantity(effectiveActual(consumption));
         }
-        for (ProductionIngredient consumption : consumptions) {
-            Ingredient ingredient = byId.get(consumption.getIngredient().getId());
-            BigDecimal actual = effectiveActual(consumption);
-            consumption.setActualQuantity(actual);
-            consumption.setIngredient(ingredient);
-            ingredient.setCurrentStock(ingredient.getCurrentStock().subtract(actual));
-        }
-        ingredientRepository.saveAll(lockedIngredients);
         productionIngredientRepository.saveAll(consumptions);
 
         if (production.getFinalUnits() > 0) {
@@ -331,14 +303,12 @@ public class ProductionService implements IProductionService {
             BigDecimal expectedCost = money(item.getExpectedQuantity()
                     .multiply(item.getCostPerBaseUnitSnapshot()));
             BigDecimal actualCost = money(actual.multiply(item.getCostPerBaseUnitSnapshot()));
-            BigDecimal current = item.getIngredient().getCurrentStock();
-            BigDecimal projected = current.subtract(actual).setScale(4);
             ingredients.add(new ProductionIngredientResponseDTO(
                     item.getIngredient().getId(), item.getIngredient().getName(),
                     item.getExpectedQuantity(), actual, difference,
                     differencePercentage, item.getMeasurementUnitSnapshot(),
                     item.getCostPerBaseUnitSnapshot(), expectedCost,
-                    actualCost, current, projected, current.compareTo(actual) >= 0));
+                    actualCost));
             expectedTotal = expectedTotal.add(expectedCost);
             actualTotal = actualTotal.add(actualCost);
         }

@@ -120,6 +120,7 @@ public class OrderReconciliationService {
             OrderStatus previousStatus = order.getStatus();
             incorporatedIncome = incorporatedIncome.add(order.getOrderTotal());
             order.setStatus(OrderStatus.ENTREGADO);
+            order.setPagado(true);
             auditEntries.add(OrderReconciliation.builder()
                     .batchId(batchId)
                     .order(order)
@@ -159,6 +160,7 @@ public class OrderReconciliationService {
 				order.getPedidosYaOrderNumber(),
                 order.getDeliveryTime(),
                 order.getOrderTotal(),
+                order.isPagado(),
                 order.getStatus());
     }
 

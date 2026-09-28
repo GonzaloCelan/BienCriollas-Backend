@@ -81,6 +81,8 @@ class OrderReconciliationServiceTest {
 
         assertEquals(OrderStatus.ENTREGADO, pending.getStatus());
         assertEquals(OrderStatus.ENTREGADO, prepared.getStatus());
+        assertEquals(true, pending.isPagado());
+        assertEquals(true, prepared.isPagado());
         assertEquals(2, result.updatedCount());
         assertEquals(new BigDecimal("10000.00"), result.incorporatedIncome());
         assertEquals("admin", result.performedBy());

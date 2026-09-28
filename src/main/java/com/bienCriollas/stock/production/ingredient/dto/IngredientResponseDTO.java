@@ -3,6 +3,7 @@ package com.bienCriollas.stock.production.ingredient.dto;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
+import com.bienCriollas.stock.production.ingredient.enums.ReferencePriceUnit;
 
 public record IngredientResponseDTO(
         Long id,
@@ -11,12 +12,10 @@ public record IngredientResponseDTO(
         String purchasePresentation,
         BigDecimal purchaseQuantity,
         BigDecimal purchasePrice,
-        BigDecimal currentStock,
-        BigDecimal minimumStock,
         BigDecimal costPerBaseUnit,
         Boolean purchaseDataComplete,
-        BigDecimal stockValue,
-        Boolean lowStock,
+        BigDecimal referencePrice,
+        ReferencePriceUnit referencePriceUnit,
         Boolean active,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

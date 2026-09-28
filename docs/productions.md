@@ -4,10 +4,10 @@ Base: `/api/v1/productions`. Todos los endpoints requieren Bearer JWT.
 
 1. `POST /api/v1/productions` crea un `DRAFT` desde la receta activa.
 2. `PUT /{id}` registra resultado, tiempo, personas y merma.
-3. `PATCH /{id}/ingredients` corrige un consumo y `POST /{id}/ingredients`
-   agrega un extra.
-4. `POST /{id}/finalize` valida y descuenta todos los ingredientes en una
-   transacción.
+3. `PATCH /{id}/ingredients` corrige un consumo real y `POST /{id}/ingredients`
+   agrega un extra para el análisis de costos.
+4. `POST /{id}/finalize` finaliza la tanda y suma las unidades obtenidas al
+   stock de empanadas terminadas.
 
 Al crear el borrador se guardan `measurementUnitSnapshot` y
 `costPerBaseUnitSnapshot`. El historial no cambia si luego se edita el ingrediente.
@@ -52,21 +52,17 @@ esperada.
   "measurementUnit": "UNIT",
   "costPerBaseUnitSnapshot": 200,
   "expectedCost": 800,
-  "actualCost": 1000,
-  "currentStock": 30,
-  "projectedStock": 25,
-  "enoughStock": true
+  "actualCost": 1000
 }
 ```
 
-Los costos usan `actualQuantity * costPerBaseUnitSnapshot`. Al finalizar, el
-stock se reduce con `currentStock - actualQuantity` sin conversiones según el
-tipo de ingrediente. La validación se completa para todos los ingredientes antes
-de modificar datos; cualquier faltante provoca rollback completo y deja la
-producción en `DRAFT`.
+Los costos usan `actualQuantity * costPerBaseUnitSnapshot`. Al finalizar no se
+valida disponibilidad ni se descuenta materia prima. El consumo real se conserva
+para costos y desvíos, mientras que `finalUnits` se suma al stock de la variedad
+terminada.
 
-`POST /{id}/cancel` cancela un borrador sin mover stock. No existe eliminación
-porque las producciones se conservan como historial.
+`POST /{id}/cancel` cancela un borrador sin devolver materia prima. No existe
+eliminación porque las producciones se conservan como historial.
 
 En estadísticas, la mano de obra estándar sale del `LABOR` de receta y la real
 continúa saliendo de horas por personas por costo hora. Los descartables reales

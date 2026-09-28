@@ -13,8 +13,5 @@ public record ProductionIngredientResponseDTO(
         MeasurementUnit measurementUnit,
         BigDecimal costPerBaseUnitSnapshot,
         BigDecimal expectedCost,
-        BigDecimal actualCost,
-        BigDecimal currentStock,
-        BigDecimal projectedStock,
-        Boolean enoughStock) {
+        BigDecimal actualCost) {
 }

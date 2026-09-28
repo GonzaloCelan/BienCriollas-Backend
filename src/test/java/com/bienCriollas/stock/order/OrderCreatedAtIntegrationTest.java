@@ -3,6 +3,7 @@ package com.bienCriollas.stock.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -89,6 +90,7 @@ class OrderCreatedAtIntegrationTest {
             assertThat(response.get("fechaPedido").asString()).isEqualTo(today().toString());
             assertThat(response.get("horaEntrega").asString()).isEqualTo("21:00:00");
             assertThat(response.get("scheduled").asBoolean()).isEqualTo(scheduled);
+            assertThat(response.get("pagado").asBoolean()).isFalse();
             if (scheduled) {
                 assertThat(response.get("fechaEntrega").asString()).isEqualTo(deliveryDate.toString());
                 assertThat(createdAt.toLocalDate()).isBefore(deliveryDate);
@@ -136,6 +138,122 @@ class OrderCreatedAtIntegrationTest {
         assertThat(cancelled.getCashAmount()).isEqualByComparingTo("0.00");
         assertThat(cancelled.getTransferAmount()).isEqualByComparingTo("0.00");
         assertThat(cancelled.getOrderTotal()).isEqualByComparingTo("0.00");
+        assertThat(cancelled.isPagado()).isFalse();
+    }
+
+    @Test
+    void paidStatusFlowsThroughCreationPreparationDeliveryPatchAndCancellation() throws Exception {
+        JsonNode prepaid = jsonMapper.readTree(mockMvc.perform(post(BASE + "/crear").with(jwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(request("PARTICULAR", null, true)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        long prepaidId = prepaid.get("idPedido").asLong();
+        assertThat(prepaid.get("pagado").asBoolean()).isTrue();
+
+        mockMvc.perform(put(BASE + "/actualizar-estado/{id}/PREPARADO", prepaidId).with(jwt()))
+                .andExpect(status().isOk());
+        assertThat(reload(prepaidId).isPagado()).isTrue();
+        mockMvc.perform(put(BASE + "/actualizar-estado/{id}/CANCELADO", prepaidId).with(jwt()))
+                .andExpect(status().isOk());
+        assertThat(reload(prepaidId).isPagado()).isTrue();
+
+        JsonNode payOnPickup = createOrder("PARTICULAR", null);
+        long payOnPickupId = payOnPickup.get("idPedido").asLong();
+        mockMvc.perform(put(BASE + "/actualizar-estado/{id}/PREPARADO", payOnPickupId).with(jwt()))
+                .andExpect(status().isOk());
+        assertThat(reload(payOnPickupId).isPagado()).isFalse();
+
+        JsonNode paidByPatch = jsonMapper.readTree(mockMvc.perform(
+                        patch(BASE + "/{id}/pago", payOnPickupId).with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"pagado\":true}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(paidByPatch.get("pagado").asBoolean()).isTrue();
+
+        mockMvc.perform(put(BASE + "/actualizar-estado/{id}/ENTREGADO", payOnPickupId).with(jwt()))
+                .andExpect(status().isOk());
+        assertThat(reload(payOnPickupId).isPagado()).isTrue();
+        mockMvc.perform(patch(BASE + "/{id}/pago", payOnPickupId).with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pagado\":false}"))
+                .andExpect(status().isConflict());
+        assertThat(reload(payOnPickupId).isPagado()).isTrue();
+    }
+
+    @Test
+    void deliveryEtaSupportsCreationEditingPatchRemovalValidationAndStateChanges() throws Exception {
+        LocalDateTime beforeCreation = argentinaNow().plusMinutes(31);
+        JsonNode created = jsonMapper.readTree(mockMvc.perform(post(BASE + "/crear").with(jwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestWithEta("PEDIDOS_YA", 31)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        LocalDateTime afterCreation = argentinaNow().plusMinutes(31);
+        long id = created.get("idPedido").asLong();
+        LocalDateTime createdEta = LocalDateTime.parse(
+                created.get("fechaHoraEstimadaDelivery").asString());
+        assertThat(createdEta).isBetween(beforeCreation, afterCreation);
+        assertThat(reload(id).getFechaHoraEstimadaDelivery()).isEqualTo(createdEta);
+
+        JsonNode listed = readOrders(BASE + "/por-fecha/" + today());
+        assertThat(listed.get(0).get("fechaHoraEstimadaDelivery").asString())
+                .isEqualTo(createdEta.toString());
+
+        JsonNode legacyEdit = jsonMapper.readTree(mockMvc.perform(put(BASE + "/actualizar/{id}", id)
+                .with(jwt()).contentType(MediaType.APPLICATION_JSON)
+                .content(request("PEDIDOS_YA", null)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(legacyEdit.get("fechaHoraEstimadaDelivery").asString())
+                .isEqualTo(createdEta.toString());
+
+        LocalDateTime beforeEdit = argentinaNow().plusMinutes(40);
+        JsonNode edited = jsonMapper.readTree(mockMvc.perform(put(BASE + "/actualizar/{id}", id)
+                .with(jwt()).contentType(MediaType.APPLICATION_JSON)
+                .content(requestWithEta("PEDIDOS_YA", 40)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(LocalDateTime.parse(edited.get("fechaHoraEstimadaDelivery").asString()))
+                .isBetween(beforeEdit, argentinaNow().plusMinutes(40));
+
+        mockMvc.perform(put(BASE + "/actualizar-estado/{id}/PREPARADO", id).with(jwt()))
+                .andExpect(status().isOk());
+        LocalDateTime etaBeforePatch = reload(id).getFechaHoraEstimadaDelivery();
+        assertThat(etaBeforePatch).isNotNull();
+
+        LocalDateTime beforePatch = argentinaNow().plusMinutes(20);
+        JsonNode patched = jsonMapper.readTree(mockMvc.perform(
+                        patch(BASE + "/{id}/eta-delivery", id).with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"minutos\":20}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(patched.get("estadoPedido").asString()).isEqualTo("PREPARADO");
+        assertThat(patched.get("pagado").asBoolean()).isFalse();
+        assertThat(LocalDateTime.parse(patched.get("fechaHoraEstimadaDelivery").asString()))
+                .isBetween(beforePatch, argentinaNow().plusMinutes(20));
+
+        mockMvc.perform(patch(BASE + "/{id}/eta-delivery", id).with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"minutos\":0}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch(BASE + "/{id}/eta-delivery", id).with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"minutos\":-5}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put(BASE + "/actualizar-estado/{id}/ENTREGADO", id).with(jwt()))
+                .andExpect(status().isOk());
+        assertThat(reload(id).getFechaHoraEstimadaDelivery()).isNotNull();
+
+        JsonNode withoutEta = jsonMapper.readTree(mockMvc.perform(
+                        patch(BASE + "/{id}/eta-delivery", id).with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"minutos\":null}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(withoutEta.get("fechaHoraEstimadaDelivery").isNull()).isTrue();
+
+        JsonNode particular = createOrder("PARTICULAR", null);
+        mockMvc.perform(patch(BASE + "/{id}/eta-delivery", particular.get("idPedido").asLong())
+                        .with(jwt()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"minutos\":20}"))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -201,6 +319,30 @@ class OrderCreatedAtIntegrationTest {
                     "fechaEntrega": %s, "createdAt": "2000-01-01T00:00:00"
                 }
                 """.formatted(saleType, varietyId, deliveryDate == null ? "null" : "\"" + deliveryDate + "\"");
+    }
+
+    private String request(String saleType, LocalDate deliveryDate, boolean pagado) {
+        return """
+                {
+                    "cliente": "Julieta Vargas", "tipoVenta": "%s", "tipoPago": "EFECTIVO",
+                    "numeroPedidoPedidosYa": "PYA-payment", "horaEntrega": "21:00:00",
+                    "totalPedido": 18000, "detalles": [{"idVariedad": %d, "cantidad": 12}],
+                    "fechaEntrega": %s, "pagado": %s
+                }
+                """.formatted(saleType, varietyId,
+                        deliveryDate == null ? "null" : "\"" + deliveryDate + "\"", pagado);
+    }
+
+    private String requestWithEta(String saleType, Integer minutes) {
+        return """
+                {
+                    "cliente": "Carlos Castro", "tipoVenta": "%s", "tipoPago": "TRANSFERENCIA",
+                    "numeroPedidoPedidosYa": "PYA-eta", "horaEntrega": null,
+                    "totalPedido": 18000, "detalles": [{"idVariedad": %d, "cantidad": 12}],
+                    "fechaEntrega": null, "pagado": false,
+                    "tiempoEstimadoDeliveryMinutos": %s
+                }
+                """.formatted(saleType, varietyId, minutes == null ? "null" : minutes);
     }
 
     private Order reload(long id) {

@@ -30,13 +30,6 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
             """)
     Page<Ingredient> search(@Param("query") String query, Pageable pageable);
 
-    @Query("""
-            SELECT i FROM Ingredient i
-            WHERE i.active = true AND i.currentStock <= i.minimumStock
-            ORDER BY i.name, i.id
-            """)
-    List<Ingredient> findLowStockIngredients();
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Ingredient i WHERE i.id = :id")
     Optional<Ingredient> findByIdForUpdate(@Param("id") Long id);
@@ -45,17 +38,11 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
     @Query("SELECT i FROM Ingredient i WHERE i.id IN :ids ORDER BY i.id")
     List<Ingredient> findAllByIdForRecipe(@Param("ids") Collection<Long> ids);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT i FROM Ingredient i WHERE i.id IN :ids ORDER BY i.id")
-    List<Ingredient> findAllByIdForProduction(@Param("ids") Collection<Long> ids);
-
     @Query("""
             SELECT new com.bienCriollas.stock.production.ingredient.dto.IngredientSummaryDTO(
                 COUNT(i),
                 COALESCE(SUM(CASE WHEN i.active = true THEN 1L ELSE 0L END), 0L),
-                COALESCE(SUM(CASE WHEN i.active = false THEN 1L ELSE 0L END), 0L),
-                COALESCE(SUM(CASE WHEN i.active = true AND i.currentStock <= i.minimumStock THEN 1L ELSE 0L END), 0L),
-                COALESCE(SUM(i.currentStock * i.costPerBaseUnit), 0BD))
+                COALESCE(SUM(CASE WHEN i.active = false THEN 1L ELSE 0L END), 0L))
             FROM Ingredient i
             """)
     IngredientSummaryDTO getSummary();

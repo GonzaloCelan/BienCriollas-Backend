@@ -227,7 +227,7 @@ class RecipeIntegrationTest {
     }
 
     @Test
-    void calculatesScaledRequirementsAvailabilityAndCostWithoutChangingStock() {
+    void calculatesScaledRequirementsAndCostWithoutUsingLegacyStock() {
         RecipeResponseDTO recipe = createRecipe();
         BigDecimal meatBefore = meat.getCurrentStock();
         BigDecimal onionBefore = onion.getCurrentStock();
@@ -238,13 +238,9 @@ class RecipeIntegrationTest {
         assertThat(result.requestedUnits()).isEqualTo(250);
         RecipeCalculatedIngredientDTO calculatedMeat = result.ingredients().get(0);
         assertThat(calculatedMeat.requiredQuantity()).isEqualByComparingTo("20000");
-        assertThat(calculatedMeat.enoughStock()).isTrue();
-        assertThat(calculatedMeat.missingQuantity()).isZero();
         assertThat(calculatedMeat.estimatedCost()).isEqualByComparingTo("250000");
         RecipeCalculatedIngredientDTO calculatedOnion = result.ingredients().get(1);
         assertThat(calculatedOnion.requiredQuantity()).isEqualByComparingTo("10000");
-        assertThat(calculatedOnion.enoughStock()).isFalse();
-        assertThat(calculatedOnion.missingQuantity()).isEqualByComparingTo("4000");
         assertThat(result.estimatedTotalCost()).isEqualByComparingTo("263500");
         assertThat(result.estimatedCostPerUnit()).isEqualByComparingTo("1054");
 
@@ -411,7 +407,10 @@ class RecipeIntegrationTest {
                         .param("quantity", "250").with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scaleFactor").value(2.5))
-                .andExpect(jsonPath("$.ingredients[1].missingQuantity").value(4000));
+                .andExpect(jsonPath("$.ingredients[1].requiredQuantity").value(10000))
+                .andExpect(jsonPath("$.ingredients[1].estimatedCost").value(13500))
+                .andExpect(jsonPath("$.ingredients[1].currentStock").doesNotExist())
+                .andExpect(jsonPath("$.ingredients[1].enoughStock").doesNotExist());
 
         mockMvc.perform(post(BASE + "/" + recipeId + "/versions").with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)

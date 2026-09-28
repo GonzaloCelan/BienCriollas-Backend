@@ -1,6 +1,5 @@
 package com.bienCriollas.stock.production.ingredient.interfaces;
 
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.bienCriollas.stock.production.ingredient.dto.*;
@@ -18,22 +17,11 @@ public interface IIngredientService {
 
     IngredientResponseDTO updateIngredient(Long id, IngredientRequestDTO dto);
 
-    IngredientResponseDTO setStock(Long id, IngredientStockUpdateDTO dto);
-
-    IngredientResponseDTO increaseStock(Long id, IngredientStockMovementDTO dto);
-
-    IngredientResponseDTO decreaseStock(Long id, IngredientStockMovementDTO dto);
-
     IngredientResponseDTO updateCost(Long id, IngredientCostUpdateDTO dto);
-
-    IngredientResponseDTO updateMinimumStock(Long id, IngredientMinimumStockDTO dto);
 
     IngredientResponseDTO activateIngredient(Long id);
 
     IngredientResponseDTO deactivateIngredient(Long id);
 
-    List<IngredientResponseDTO> getLowStockIngredients();
-
     IngredientSummaryDTO getSummary();
 }
-

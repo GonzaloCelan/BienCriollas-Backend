@@ -2,8 +2,10 @@ package com.bienCriollas.stock.order.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +90,9 @@ public class OrderService implements IOrderService {
      // 1) Parsear enums una sola vez
         SaleType saleType = parseEnum(SaleType.class, orderRequest.saleType(), "tipo de venta");
         PaymentType paymentType = parseEnum(PaymentType.class, orderRequest.paymentType(), "tipo de pago");
+        LocalDateTime estimatedDeliveryDateTime = calculateEstimatedDeliveryDateTime(
+                saleType,
+                orderRequest.estimatedDeliveryMinutes());
 
 
         //Calcular montos según tipo de pago
@@ -143,12 +148,14 @@ public class OrderService implements IOrderService {
                 .paymentType(paymentType)
                 .pedidosYaOrderNumber(orderRequest.pedidosYaOrderNumber() != null ? orderRequest.pedidosYaOrderNumber() : null)
                 .deliveryTime(orderRequest.deliveryTime())
+                .fechaHoraEstimadaDelivery(estimatedDeliveryDateTime)
                 .creationDate(currentDate)
                 .deliveryDate(orderRequest.deliveryDate())
                 .stockDiscounted(!scheduledForFuture)
                 .cashAmount(cashAmount)
                 .transferAmount(transferAmount)
                 .orderTotal(orderRequest.orderTotal() != null ? orderRequest.orderTotal() : BigDecimal.ZERO)
+                .pagado(Boolean.TRUE.equals(orderRequest.pagado()))
                 .status(OrderStatus.PENDIENTE)
                 .build();
 
@@ -215,6 +222,12 @@ public class OrderService implements IOrderService {
         SaleType saleType = parseEnum(SaleType.class, orderRequest.saleType(), "tipo de venta");
         PaymentType paymentType = parseEnum(PaymentType.class, orderRequest.paymentType(), "tipo de pago");
         PaymentAmounts amounts = calculatePaymentAmounts(orderRequest, paymentType);
+        LocalDateTime estimatedDeliveryDateTime = order.getFechaHoraEstimadaDelivery();
+        if (saleType != SaleType.PEDIDOS_YA || orderRequest.estimatedDeliveryMinutes() != null) {
+            estimatedDeliveryDateTime = calculateEstimatedDeliveryDateTime(
+                    saleType,
+                    orderRequest.estimatedDeliveryMinutes());
+        }
 
         Map<Long, EmpanadaVariety> newVarieties = new HashMap<>();
         TreeMap<Long, Integer> previousQuantities = getOrderQuantities(order);
@@ -255,11 +268,15 @@ public class OrderService implements IOrderService {
         order.setPaymentType(paymentType);
         order.setPedidosYaOrderNumber(orderRequest.pedidosYaOrderNumber());
         order.setDeliveryTime(orderRequest.deliveryTime());
+        order.setFechaHoraEstimadaDelivery(estimatedDeliveryDateTime);
         order.setDeliveryDate(orderRequest.deliveryDate());
         order.setStockDiscounted(stockWillBeDiscounted);
         order.setCashAmount(amounts.cash());
         order.setTransferAmount(amounts.transfer());
         order.setOrderTotal(orderRequest.orderTotal());
+        if (orderRequest.pagado() != null) {
+            order.setPagado(orderRequest.pagado());
+        }
 
         for (OrderDetailRequestDTO detailRequest : orderRequest.details()) {
             order.getDetails().add(OrderDetail.builder()
@@ -324,9 +341,44 @@ public class OrderService implements IOrderService {
             applyStockIfNeeded(order);
         }
 
+        if (newStatus == OrderStatus.ENTREGADO) {
+            order.setPagado(true);
+        }
+
         order.setStatus(newStatus);
         orderRepository.save(order);
         return true;
+    }
+
+    @Override
+    @Transactional
+    public OrderResponseDTO updatePaidStatus(Long orderId, boolean pagado) {
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        if (order.getStatus() == OrderStatus.ENTREGADO && !pagado) {
+            throw new OrderOperationNotAllowedException(
+                    "Un pedido entregado no puede quedar pendiente de pago.");
+        }
+
+        order.setPagado(pagado);
+        return toDto(orderRepository.save(order));
+    }
+
+    @Override
+    @Transactional
+    public OrderResponseDTO updateDeliveryEta(Long orderId, Integer minutes) {
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        if (order.getSaleType() != SaleType.PEDIDOS_YA) {
+            throw new OrderOperationNotAllowedException(
+                    "El tiempo estimado del delivery solo aplica a pedidos de PedidosYa.");
+        }
+
+        order.setFechaHoraEstimadaDelivery(
+                calculateEstimatedDeliveryDateTime(order.getSaleType(), minutes));
+        return toDto(orderRepository.save(order));
     }
 
 
@@ -439,7 +491,8 @@ public class OrderService implements IOrderService {
                         detail.getQuantity(),
                         existingOrder.getOrderTotal(),
                         existingOrder.getSaleType(),
-                        existingOrder.getPaymentType()
+                        existingOrder.getPaymentType(),
+                        existingOrder.isPagado()
                 ))
                 .toList();
     }
@@ -499,9 +552,11 @@ public class OrderService implements IOrderService {
                 p.getCustomer(), // o p.getCustomer().getNombre() si tenés entidad Cliente
                 p.getSaleType() == null ? null : p.getSaleType().name(), // si es enum
                 p.getPaymentType()  == null ? null : p.getPaymentType().name(),  // si es enum
-                    p.getPedidosYaOrderNumber(), // tu campo de PedidosYa
+                p.getPedidosYaOrderNumber(), // tu campo de PedidosYa
                 p.getDeliveryTime(),
+                p.getFechaHoraEstimadaDelivery(),
                 p.getOrderTotal(),
+                p.isPagado(),
                 p.getStatus(),
                 p.getCreationDate(),
                 p.getDeliveryDate(),
@@ -655,6 +710,23 @@ public class OrderService implements IOrderService {
 
     private LocalDate today() {
         return LocalDate.now(ARGENTINA_ZONE);
+    }
+
+    private LocalDateTime argentinaNow() {
+        return LocalDateTime.now(ARGENTINA_ZONE).truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    private LocalDateTime calculateEstimatedDeliveryDateTime(
+            SaleType saleType,
+            Integer estimatedDeliveryMinutes) {
+        if (estimatedDeliveryMinutes != null && estimatedDeliveryMinutes <= 0) {
+            throw new InvalidOrderException(
+                    "El tiempo estimado del delivery debe ser mayor a cero.");
+        }
+        if (saleType != SaleType.PEDIDOS_YA || estimatedDeliveryMinutes == null) {
+            return null;
+        }
+        return argentinaNow().plusMinutes(estimatedDeliveryMinutes);
     }
 
     private boolean isFutureDelivery(LocalDate deliveryDate, LocalDate currentDate) {

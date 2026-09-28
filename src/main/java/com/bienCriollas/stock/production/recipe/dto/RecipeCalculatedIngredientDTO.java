@@ -9,8 +9,5 @@ public record RecipeCalculatedIngredientDTO(
         MeasurementUnit measurementUnit,
         BigDecimal baseQuantity,
         BigDecimal requiredQuantity,
-        BigDecimal currentStock,
-        Boolean enoughStock,
-        BigDecimal missingQuantity,
         BigDecimal estimatedCost
 ) {}

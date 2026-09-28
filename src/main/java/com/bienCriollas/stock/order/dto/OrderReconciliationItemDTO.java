@@ -18,5 +18,6 @@ public record OrderReconciliationItemDTO(
         @JsonProperty("numeroPedidoPedidosYa") String pedidosYaOrderNumber,
         @JsonProperty("horaEntrega") LocalTime deliveryTime,
         @JsonProperty("totalPedido") BigDecimal orderTotal,
+        @JsonProperty("pagado") boolean pagado,
         @JsonProperty("estadoActual") OrderStatus currentStatus) {
 }

@@ -1,13 +1,13 @@
 package com.bienCriollas.stock.production.ingredient.controller;
 
 import java.net.URI;
-import java.util.List;
 
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,7 +19,7 @@ import com.bienCriollas.stock.production.ingredient.interfaces.IIngredientServic
 @RestController
 @RequestMapping("/api/v1/ingredients")
 @RequiredArgsConstructor
-@Tag(name = "Producción - Ingredientes", description = "Stock y costos en la unidad base de cada materia prima.")
+@Tag(name = "Producción - Ingredientes", description = "Catálogo de materias primas, presentaciones de compra y costos.")
 public class IngredientController {
 
     private final IIngredientService ingredientService;
@@ -56,9 +56,10 @@ public class IngredientController {
     }
 
     @GetMapping("/low-stock")
-    @Operation(summary = "Listar ingredientes activos con stock bajo")
-    public ResponseEntity<List<IngredientResponseDTO>> getLowStockIngredients() {
-        return ResponseEntity.ok(ingredientService.getLowStockIngredients());
+    @Deprecated
+    @Operation(summary = "Endpoint discontinuado: el stock de ingredientes ya no se controla", deprecated = true)
+    public ResponseEntity<Void> getLowStockIngredients() {
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @GetMapping("/summary")
@@ -74,21 +75,24 @@ public class IngredientController {
     }
 
     @PatchMapping("/{id}/stock")
-    @Operation(summary = "Establecer stock exacto")
-    public ResponseEntity<IngredientResponseDTO> setStock(@PathVariable Long id, @Valid @RequestBody IngredientStockUpdateDTO dto) {
-        return ResponseEntity.ok(ingredientService.setStock(id, dto));
+    @Deprecated
+    @Operation(summary = "Endpoint discontinuado: el stock de ingredientes ya no se controla", deprecated = true)
+    public ResponseEntity<Void> setStock(@PathVariable Long id, @RequestBody(required = false) Object ignored) {
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @PatchMapping("/{id}/stock/increase")
-    @Operation(summary = "Sumar stock en la unidad base del ingrediente")
-    public ResponseEntity<IngredientResponseDTO> increaseStock(@PathVariable Long id, @Valid @RequestBody IngredientStockMovementDTO dto) {
-        return ResponseEntity.ok(ingredientService.increaseStock(id, dto));
+    @Deprecated
+    @Operation(summary = "Endpoint discontinuado: el stock de ingredientes ya no se controla", deprecated = true)
+    public ResponseEntity<Void> increaseStock(@PathVariable Long id, @RequestBody(required = false) Object ignored) {
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @PatchMapping("/{id}/stock/decrease")
-    @Operation(summary = "Descontar stock en la unidad base del ingrediente")
-    public ResponseEntity<IngredientResponseDTO> decreaseStock(@PathVariable Long id, @Valid @RequestBody IngredientStockMovementDTO dto) {
-        return ResponseEntity.ok(ingredientService.decreaseStock(id, dto));
+    @Deprecated
+    @Operation(summary = "Endpoint discontinuado: el stock de ingredientes ya no se controla", deprecated = true)
+    public ResponseEntity<Void> decreaseStock(@PathVariable Long id, @RequestBody(required = false) Object ignored) {
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @PatchMapping("/{id}/cost")
@@ -98,9 +102,10 @@ public class IngredientController {
     }
 
     @PatchMapping("/{id}/minimum-stock")
-    @Operation(summary = "Actualizar stock mínimo")
-    public ResponseEntity<IngredientResponseDTO> updateMinimumStock(@PathVariable Long id, @Valid @RequestBody IngredientMinimumStockDTO dto) {
-        return ResponseEntity.ok(ingredientService.updateMinimumStock(id, dto));
+    @Deprecated
+    @Operation(summary = "Endpoint discontinuado: el stock mínimo ya no se controla", deprecated = true)
+    public ResponseEntity<Void> updateMinimumStock(@PathVariable Long id, @RequestBody(required = false) Object ignored) {
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @PatchMapping("/{id}/activate")

@@ -11,7 +11,7 @@ Base: `/api/v1/recipes`. Todos los endpoints requieren Bearer JWT.
 | GET | `/variety/{varietyId}/history` | Obtener versiones |
 | GET | `/status?active=true` | Listar por estado |
 | POST | `/{id}/versions` | Crear versión nueva |
-| GET | `/{id}/calculate?quantity=250` | Simular cantidades, faltantes y costos |
+| GET | `/{id}/calculate?quantity=250` | Simular cantidades y costos |
 
 ```json
 {
@@ -65,7 +65,8 @@ La fórmula de escalado es
 `requiredQuantity = quantity * requestedUnits / baseYieldUnits`, con cuatro
 decimales. El costo estimado es
 `requiredQuantity * currentCostPerBaseUnit`. Consultar o calcular una receta
-no descuenta stock.
+no consulta disponibilidad y no descuenta stock. La respuesta calculada ya no
+incluye `currentStock`, `enoughStock` ni `missingQuantity`.
 
 La respuesta incluye `additionalCosts[].calculatedCost` y `costSummary`.
 Los porcentajes se calculan una sola vez sobre ingredientes más costos fijos y

@@ -13,7 +13,8 @@ public record OrderDetailResponseDTO(
         @JsonProperty("cantidad") Integer quantity,
         BigDecimal subtotal,
         @JsonProperty("tipoVenta") SaleType saleType,
-        @JsonProperty("tipoPago") PaymentType paymentType
+        @JsonProperty("tipoPago") PaymentType paymentType,
+        @JsonProperty("pagado") boolean pagado
         ) {
 
 }

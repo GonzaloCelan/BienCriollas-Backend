@@ -23,6 +23,10 @@ public interface IOrderService {
 
       public boolean updateOrderStatus(Long orderId, OrderStatus newStatus);
 
+      public OrderResponseDTO updatePaidStatus(Long orderId, boolean pagado);
+
+      public OrderResponseDTO updateDeliveryEta(Long orderId, Integer minutes);
+
       public boolean updatePaymentType(
               Long orderId,
               PaymentType newPaymentType,

@@ -32,6 +32,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(name = "pedido")
@@ -83,6 +84,12 @@ public class Order {
     @JsonProperty("totalPedido")
     private BigDecimal orderTotal;
 
+    @Column(name = "pagado", nullable = false)
+    @ColumnDefault("false")
+    @JsonProperty("pagado")
+    @Builder.Default
+    private boolean pagado = false;
+
     // --- Número de pedido (solo si es PEDIDOS_YA) ---
     @Column(name = "numero_pedido_plataforma", length = 50, nullable = true)
     @JsonProperty("numeroPedidoPedidosYa")
@@ -92,6 +99,10 @@ public class Order {
     @Column(name = "hora_entrega",nullable = true)
     @JsonProperty("horaEntrega")
     private LocalTime deliveryTime;
+
+    @Column(name = "fecha_hora_estimada_delivery")
+    @JsonProperty("fechaHoraEstimadaDelivery")
+    private LocalDateTime fechaHoraEstimadaDelivery;
     
     @Enumerated(EnumType.STRING)
     @Column(name = "estado",nullable = false)

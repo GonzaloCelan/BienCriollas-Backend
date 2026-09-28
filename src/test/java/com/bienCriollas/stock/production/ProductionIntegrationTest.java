@@ -25,7 +25,6 @@ import com.bienCriollas.stock.production.enums.ProductionStatus;
 import com.bienCriollas.stock.production.exception.*;
 import com.bienCriollas.stock.production.ingredient.entity.Ingredient;
 import com.bienCriollas.stock.production.ingredient.enums.MeasurementUnit;
-import com.bienCriollas.stock.production.ingredient.exception.InsufficientIngredientStockException;
 import com.bienCriollas.stock.production.ingredient.repository.IngredientRepository;
 import com.bienCriollas.stock.production.interfaces.IProductionService;
 import com.bienCriollas.stock.production.process.entity.*;
@@ -186,20 +185,20 @@ class ProductionIntegrationTest {
         assertThat(storedProduction.getEnergyPercentageSnapshot())
                 .isEqualByComparingTo("6.00");
         assertThat(ingredientRepository.findById(meat.getId()).orElseThrow()
-                .getCurrentStock()).isEqualByComparingTo("16600.00");
+                .getCurrentStock()).isEqualByComparingTo("25000.00");
         assertThat(ingredientRepository.findById(onion.getId()).orElseThrow()
-                .getCurrentStock()).isEqualByComparingTo("11000.00");
+                .getCurrentStock()).isEqualByComparingTo("15000.00");
         Stock stock = stockRepository.findByVarietyIdAndActive(carne.getVarietyId(), 1).orElseThrow();
         assertThat(stock.getTotalStock()).isEqualTo(175);
         assertThat(stock.getAvailableStock()).isEqualTo(175);
         assertThatThrownBy(() -> service.finalizeProduction(draft.id()))
                 .isInstanceOf(ProductionAlreadyFinalizedException.class);
         assertThat(ingredientRepository.findById(meat.getId()).orElseThrow()
-                .getCurrentStock()).isEqualByComparingTo("16600.00");
+                .getCurrentStock()).isEqualByComparingTo("25000.00");
     }
 
     @Test
-    void calculatesAndConsumesGramMilliliterAndUnitUsingHistoricalSnapshots() {
+    void calculatesGramMilliliterAndUnitUsingHistoricalSnapshotsWithoutConsumingStock() {
         meat.setCurrentStock(new BigDecimal("5000"));
         meat.setCostPerBaseUnit(new BigDecimal("10"));
         ingredientRepository.saveAndFlush(meat);
@@ -234,11 +233,11 @@ class ProductionIntegrationTest {
         service.finalizeProduction(draft.id());
 
         assertThat(ingredientRepository.findById(meat.getId()).orElseThrow().getCurrentStock())
-                .isEqualByComparingTo("4000");
+                .isEqualByComparingTo("5000");
         assertThat(ingredientRepository.findById(oil.getId()).orElseThrow().getCurrentStock())
-                .isEqualByComparingTo("1850");
+                .isEqualByComparingTo("2000");
         assertThat(ingredientRepository.findById(egg.getId()).orElseThrow().getCurrentStock())
-                .isEqualByComparingTo("26");
+                .isEqualByComparingTo("30");
     }
 
     @Test
@@ -259,7 +258,7 @@ class ProductionIntegrationTest {
     }
 
     @Test
-    void insufficientUnitStockRollsBackEveryChange() {
+    void finalizesEvenWhenLegacyIngredientStockIsInsufficient() {
         Ingredient egg = ingredient("Huevo", MeasurementUnit.UNIT, "3", "200");
         replaceRecipeIngredients(RecipeIngredient.builder().ingredient(egg)
                 .quantity(new BigDecimal("4")).build());
@@ -267,26 +266,17 @@ class ProductionIntegrationTest {
         service.updateProduction(draft.id(),
                 new ProductionUpdateDTO(100, 60, 2, 0, null, null));
 
-        assertThatThrownBy(() -> service.finalizeProduction(draft.id()))
-                .isInstanceOf(InsufficientIngredientStockException.class)
-                .hasMessageContaining("3.0000 u").hasMessageContaining("4.0000 u");
+        ProductionResponseDTO finalized = service.finalizeProduction(draft.id());
+
+        assertThat(finalized.status()).isEqualTo(ProductionStatus.FINALIZED);
         assertThat(ingredientRepository.findById(egg.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo("3");
-        assertThat(service.getProductionById(draft.id()).status())
-                .isEqualTo(ProductionStatus.DRAFT);
+        assertThat(stockRepository.findByVarietyIdAndActive(carne.getVarietyId(), 1)
+                .orElseThrow().getTotalStock()).isEqualTo(100);
     }
 
     @Test
-    void insufficientIngredientOrStockFailureRollsBackTheWholeFinalization() {
-        ProductionResponseDTO insufficient = createDraft(400);
-        service.updateProduction(insufficient.id(),
-                new ProductionUpdateDTO(390, null, null, 0, null, null));
-        assertThatThrownBy(() -> service.finalizeProduction(insufficient.id()))
-                .isInstanceOf(InsufficientIngredientStockException.class);
-        assertThat(service.getProductionById(insufficient.id()).status()).isEqualTo(ProductionStatus.DRAFT);
-        assertThat(ingredientRepository.findById(meat.getId()).orElseThrow()
-                .getCurrentStock()).isEqualByComparingTo("25000.00");
-
+    void finishedStockFailureRollsBackFinalizationWithoutChangingIngredients() {
         ProductionResponseDTO stockFailure = createDraft(100);
         service.updateProduction(stockFailure.id(),
                 new ProductionUpdateDTO(95, null, null, 0, null, null));

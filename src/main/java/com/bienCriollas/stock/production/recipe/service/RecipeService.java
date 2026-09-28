@@ -150,10 +150,6 @@ public class RecipeService implements IRecipeService {
             BigDecimal required = item.getQuantity()
                     .multiply(scaleFactor)
                     .setScale(4, RoundingMode.HALF_UP);
-            boolean enough = ingredient.getCurrentStock().compareTo(required) >= 0;
-            BigDecimal missing = enough
-                    ? BigDecimal.ZERO.setScale(4)
-                    : required.subtract(ingredient.getCurrentStock());
             BigDecimal cost = costForQuantity(required, ingredient);
             total = total.add(cost);
             calculated.add(new RecipeCalculatedIngredientDTO(
@@ -162,9 +158,6 @@ public class RecipeService implements IRecipeService {
                     ingredient.getMeasurementUnit(),
                     item.getQuantity(),
                     required,
-                    ingredient.getCurrentStock(),
-                    enough,
-                    missing,
                     cost));
         }
 

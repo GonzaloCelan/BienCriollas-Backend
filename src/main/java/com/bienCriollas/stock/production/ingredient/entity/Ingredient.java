@@ -80,6 +80,13 @@ public class Ingredient {
     public void prePersist() {
         createdAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
         updatedAt = createdAt;
+        // Columnas legacy: se conservan por compatibilidad de esquema, sin uso operativo.
+        if (currentStock == null) {
+            currentStock = BigDecimal.ZERO.setScale(4);
+        }
+        if (minimumStock == null) {
+            minimumStock = BigDecimal.ZERO.setScale(4);
+        }
         if (active == null) {
             active = true;
         }
