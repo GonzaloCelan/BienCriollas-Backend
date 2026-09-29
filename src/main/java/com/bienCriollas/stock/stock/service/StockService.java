@@ -1,10 +1,13 @@
 package com.bienCriollas.stock.stock.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import org.springframework.stereotype.Service;
@@ -12,9 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.bienCriollas.stock.waste.dto.EmpanadaLossDTO;
 import com.bienCriollas.stock.waste.exception.InvalidWasteException;
+import com.bienCriollas.stock.production.recipe.interfaces.IRecipeService;
+import com.bienCriollas.stock.stock.dto.StockActualResponseDTO;
 import com.bienCriollas.stock.stock.dto.StockAdjustmentDTO;
 import com.bienCriollas.stock.stock.dto.StockDTO;
 import com.bienCriollas.stock.stock.dto.StockResponseDTO;
+import com.bienCriollas.stock.stock.dto.StockSummaryResponseDTO;
 import com.bienCriollas.stock.stock.interfaces.IStockService;
 import com.bienCriollas.stock.waste.entity.EmpanadaWaste;
 import com.bienCriollas.stock.stock.entity.Stock;
@@ -39,6 +45,7 @@ public class StockService implements IStockService {
 	private final StockRepository stockRepository;
 	private final EmpanadaVarietyRepository empanadaVarietyRepository;
 	private final WasteRepository wasteRepository;
+	private final IRecipeService recipeService;
 	
 	
 	// Metodo para actualizar stock en lote
@@ -193,21 +200,54 @@ public class StockService implements IStockService {
 	
 	@Override
 	@Transactional(readOnly = true)
-	public List<StockResponseDTO> getAllStockRecords() {
-		
-		// solo los registros activos (uno por variedad)
-	    List<Stock> stocks = stockRepository.findByActive(1);
+	public List<StockActualResponseDTO> getAllStockRecords() {
+	    return buildCurrentStock(stockRepository.findByActive(1));
+	}
 
-	    return stocks.stream()
-	            .map(s -> new StockResponseDTO(
-	                    s.getVarietyId(),
-	                    s.getProductionDate(),
-	                    s.getTotalStock(),
-	                    s.getAvailableStock()
-	            ))
-	            .toList();
-		
-		
+	@Override
+	@Transactional(readOnly = true)
+	public StockSummaryResponseDTO getStockSummary() {
+		List<StockActualResponseDTO> currentStock =
+				buildCurrentStock(stockRepository.findByActive(1));
+
+		int totalUnits = currentStock.stream()
+				.mapToInt(item -> item.availableStock() == null ? 0 : item.availableStock())
+				.sum();
+		int varietiesWithStock = (int) currentStock.stream()
+				.filter(item -> item.availableStock() != null && item.availableStock() > 0)
+				.count();
+		int varietiesWithoutValuation = (int) currentStock.stream()
+				.filter(item -> item.currentUnitCost() == null)
+				.count();
+		BigDecimal totalValue = currentStock.stream()
+				.map(StockActualResponseDTO::currentStockValue)
+				.filter(Objects::nonNull)
+				.reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add)
+				.setScale(2, RoundingMode.HALF_UP);
+
+		return new StockSummaryResponseDTO(
+				totalUnits, totalValue, varietiesWithStock, varietiesWithoutValuation);
+	}
+
+	private List<StockActualResponseDTO> buildCurrentStock(List<Stock> stocks) {
+		Map<Long, BigDecimal> unitCosts = recipeService.getActiveUnitCosts(
+				stocks.stream().map(Stock::getVarietyId).toList());
+
+		return stocks.stream()
+				.map(stock -> toCurrentStockResponse(stock, unitCosts.get(stock.getVarietyId())))
+				.toList();
+	}
+
+	private StockActualResponseDTO toCurrentStockResponse(Stock stock, BigDecimal unitCost) {
+		BigDecimal normalizedUnitCost = unitCost == null
+				? null : unitCost.setScale(2, RoundingMode.HALF_UP);
+		BigDecimal stockValue = normalizedUnitCost == null || stock.getAvailableStock() == null
+				? null
+				: normalizedUnitCost.multiply(BigDecimal.valueOf(stock.getAvailableStock()))
+						.setScale(2, RoundingMode.HALF_UP);
+		return new StockActualResponseDTO(
+				stock.getVarietyId(), stock.getProductionDate(), stock.getTotalStock(),
+				stock.getAvailableStock(), normalizedUnitCost, stockValue);
 	}
 	
 	// Metodo para obtener todos los registros de stock por variedad

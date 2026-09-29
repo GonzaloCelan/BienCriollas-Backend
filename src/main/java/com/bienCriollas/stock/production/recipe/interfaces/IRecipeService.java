@@ -1,6 +1,9 @@
 package com.bienCriollas.stock.production.recipe.interfaces;
 
+import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,5 +23,5 @@ public interface IRecipeService {
     List<RecipeResponseDTO> getRecipeHistory(Long varietyId);
     RecipeResponseDTO createNewVersion(Long recipeId, RecipeVersionRequestDTO dto);
     RecipeCalculationResponseDTO calculateRecipe(Long recipeId, Integer quantity);
+    Map<Long, BigDecimal> getActiveUnitCosts(Collection<Long> varietyIds);
 }
-

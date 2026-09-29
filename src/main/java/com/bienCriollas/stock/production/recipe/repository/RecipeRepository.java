@@ -1,5 +1,6 @@
 package com.bienCriollas.stock.production.recipe.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +20,16 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
 
     @EntityGraph(attributePaths = {"variety", "ingredients", "ingredients.ingredient"})
     Optional<Recipe> findByVarietyVarietyIdAndActiveTrue(Long varietyId);
+
+    @EntityGraph(attributePaths = {"variety", "ingredients", "ingredients.ingredient"})
+    @Query("""
+            SELECT DISTINCT r
+            FROM Recipe r
+            WHERE r.active = true
+              AND r.variety.varietyId IN :varietyIds
+            """)
+    List<Recipe> findActiveDetailedByVarietyIds(
+            @Param("varietyIds") Collection<Long> varietyIds);
 
     boolean existsByVarietyVarietyIdAndActiveTrue(Long varietyId);
 

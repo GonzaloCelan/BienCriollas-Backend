@@ -12,8 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bienCriollas.stock.waste.dto.EmpanadaLossDTO;
 import com.bienCriollas.stock.stock.dto.StockAdjustmentDTO;
+import com.bienCriollas.stock.stock.dto.StockActualResponseDTO;
 import com.bienCriollas.stock.stock.dto.StockDTO;
 import com.bienCriollas.stock.stock.dto.StockResponseDTO;
+import com.bienCriollas.stock.stock.dto.StockSummaryResponseDTO;
 import com.bienCriollas.stock.stock.interfaces.IStockService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,9 +41,15 @@ public class StockController {
 	// Endpoint para obtener todos los registros de stock
 	@GetMapping("/obtener-stock-actual")
 	@Operation(summary = "Obtener el stock actual", description = "Lista el stock disponible de todas las variedades activas.")
-	public ResponseEntity<List<StockResponseDTO>> getCurrentStock() {
-		List<StockResponseDTO> response = stockService.getAllStockRecords();
+	public ResponseEntity<List<StockActualResponseDTO>> getCurrentStock() {
+		List<StockActualResponseDTO> response = stockService.getAllStockRecords();
 	    return ResponseEntity.ok(response);
+	}
+
+	@GetMapping("/resumen")
+	@Operation(summary = "Obtener resumen del stock", description = "Informa las unidades disponibles y su valor actual segun las recetas vigentes.")
+	public ResponseEntity<StockSummaryResponseDTO> getStockSummary() {
+		return ResponseEntity.ok(stockService.getStockSummary());
 	}
 	
 	

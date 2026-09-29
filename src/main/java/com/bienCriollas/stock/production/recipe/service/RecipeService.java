@@ -177,6 +177,58 @@ public class RecipeService implements IRecipeService {
                 costs.summary().estimatedCostPerUnit());
     }
 
+    @Override
+    public Map<Long, BigDecimal> getActiveUnitCosts(Collection<Long> varietyIds) {
+        if (varietyIds == null || varietyIds.isEmpty()) {
+            return Map.of();
+        }
+
+        LinkedHashSet<Long> requestedIds = varietyIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (requestedIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, BigDecimal> costsByVariety = new LinkedHashMap<>();
+        for (Recipe recipe : recipeRepository.findActiveDetailedByVarietyIds(requestedIds)) {
+            calculateCurrentUnitCost(recipe).ifPresent(cost ->
+                    costsByVariety.put(recipe.getVariety().getVarietyId(), cost));
+        }
+        return Map.copyOf(costsByVariety);
+    }
+
+    private Optional<BigDecimal> calculateCurrentUnitCost(Recipe recipe) {
+        if (recipe.getBaseYieldUnits() == null || recipe.getBaseYieldUnits() <= 0
+                || recipe.getIngredients() == null || recipe.getIngredients().isEmpty()
+                || recipe.getAdditionalCosts() == null) {
+            return Optional.empty();
+        }
+
+        BigDecimal ingredientCost = BigDecimal.ZERO;
+        for (RecipeIngredient item : recipe.getIngredients()) {
+            if (item == null || item.getQuantity() == null || item.getIngredient() == null
+                    || item.getIngredient().getCostPerBaseUnit() == null) {
+                return Optional.empty();
+            }
+            ingredientCost = ingredientCost.add(
+                    costForQuantity(item.getQuantity(), item.getIngredient()));
+        }
+        for (RecipeAdditionalCost item : recipe.getAdditionalCosts()) {
+            if (item == null) {
+                return Optional.empty();
+            }
+            if (Boolean.TRUE.equals(item.getActive())
+                    && (item.getCalculationMode() == null || item.getValue() == null)) {
+                return Optional.empty();
+            }
+        }
+
+        return Optional.of(costCalculator.calculate(
+                recipe, recipe.getBaseYieldUnits(), ingredientCost)
+                .summary().estimatedCostPerUnit());
+    }
+
     private Recipe newRecipe(
             EmpanadaVariety variety,
             int version,
